@@ -32,13 +32,24 @@ async def on_message(message):
         return
     pattern = re.compile(r'\b[a-zA-Z]{2,3}-?\d{2,3}\b')
     rekkari = pattern.search(message.content)
-    alala = ["manufacturer","modelName","description","registerDate","drive","fuel","cylinders","cylinderVolumeLiters","powerHp","powerKW"]
+    alala = {
+        "manufacturer": "Valmistaja",
+        "modelName": "Malli",
+        "description": "Kuvaus",
+        "registerDate": "Rekisteröintipäivä",
+        "drive": "Vetotapa",
+        "fuel": "Polttoaine",
+        "cylinders": "Sylinterit",
+        "cylinderVolumeLiters": "Sylinteritilavuus",
+        "powerHp": "Teho (hv)",
+        "powerKW": "Teho (kW)"
+    }
     if rekkari:
         try:
             rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
             print(rekkariRequest)
             rekkariJson = rekkariRequest.json()
-            await message.channel.send('\n'.join([f"{key}: {rekkariJson.get(key, 'N/A')}" for key in alala]))
+            await message.channel.send('\n'.join([f"{alala[key]}: **{rekkariJson.get(key, 'N/A')}**" for key in alala]))
             print(rekkariJson["manufacturer"])
         except Exception:
             await message.channel.send("Rekkaria ei löytynyt")
