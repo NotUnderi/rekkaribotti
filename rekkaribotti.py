@@ -1,12 +1,11 @@
 import os
 import re
 import requests
-from dotenv import load_dotenv,find_dotenv
+from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 
 
-load_dotenv()
                          
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
