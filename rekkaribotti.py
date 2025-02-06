@@ -26,24 +26,24 @@ async def on_ready():
 async def ping(ctx):
     await ctx.send('Pong!')
 
+@bot.command()
+async def r(ctx):
+    pattern = re.compile(r'\b[a-zA-Z]{1,3}-?\d{1,3}\b')
+    rekkari = pattern.search(ctx.message.content)
+    if rekkari:
+        try:
+            rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
+            rekkariJson = rekkariRequest.json()
+            await ctx.send('\n'.join([f"{alala[key]}: **{rekkariJson.get(key, 'N/A')}**" for key in alala]))
+            print(rekkariJson["manufacturer"])
+        except Exception:
+            await ctx.send("Rekkaria ei löytynyt")
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
         return
-    pattern = re.compile(r'\b[a-zA-Z]{2,3}-?\d{2,3}\b')
-    rekkari = pattern.search(message.content)
-    alala = {
-        "manufacturer": "Valmistaja",
-        "modelName": "Malli",
-        "description": "Kuvaus",
-        "registerDate": "Rekisteröintipäivä",
-        "drive": "Vetotapa",
-        "fuel": "Polttoaine",
-        "cylinders": "Sylinterit",
-        "cylinderVolumeLiters": "Sylinteritilavuus",
-        "powerHp": "Teho (hv)",
-        "powerKW": "Teho (kW)"
-    }
+    strictPattern =  pattern = re.compile(r'\b[a-zA-Z]{3}-?\d{3}\b')
+    rekkari = strictPattern.search(message.content)
     if rekkari:
         try:
             rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
@@ -52,8 +52,23 @@ async def on_message(message):
             await message.channel.send('\n'.join([f"{alala[key]}: **{rekkariJson.get(key, 'N/A')}**" for key in alala]))
             print(rekkariJson["manufacturer"])
         except Exception:
-            await message.channel.send("Rekkaria ei löytynyt")
+            print("Rekkaria ei löytynyt")
 
     await bot.process_commands(message)
+
+
+
+alala = {
+    "manufacturer": "Valmistaja",
+    "modelName": "Malli",
+    "description": "Kuvaus",
+    "registerDate": "Rekisteröintipäivä",
+    "drive": "Vetotapa",
+    "fuel": "Polttoaine",
+    "cylinders": "Sylinterit",
+    "cylinderVolumeLiters": "Sylinteritilavuus",
+    "powerHp": "Teho (hv)",
+    "powerKW": "Teho (kW)"
+}
 
 bot.run(TOKEN)
