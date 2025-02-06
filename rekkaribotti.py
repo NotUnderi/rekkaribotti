@@ -26,7 +26,7 @@ def get_all_ids():
     cur.execute("SELECT id FROM autot")
     ids = cur.fetchall()
     return [id[0] for id in ids]
-
+id_list = get_all_ids()
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 @bot.event
@@ -55,6 +55,7 @@ async def auto(ctx):
             cur.execute("INSERT INTO autot VALUES( ?, ?, ?)",auto)
             await ctx.send(f"Auto {rekkariJson['manufacturer']} {rekkariJson['modelName']} lisätty tietokantaan")
             con.commit()
+            id_list = get_all_ids()
         except Exception as e:
             await ctx.send("Rekkaria ei löytynyt")
             await ctx.send(e)
@@ -63,7 +64,7 @@ async def auto(ctx):
 @bot.command()
 async def autonteho(ctx):
     try:
-        if ctx.author.id in get_all_ids():
+        if ctx.author.id in id_list:
             new_power = int(ctx.message.content[11:])
             cur.execute("UPDATE autot SET teho = ? WHERE id = ?", (new_power, ctx.author.id))
             con.commit()
@@ -99,7 +100,7 @@ async def on_message(message):
             print(rekkariRequest)
             rekkariJson = rekkariRequest.json()
             await message.channel.send('\n'.join([f"{alala[key]}: **{rekkariJson.get(key, 'N/A')}**" for key in alala]))
-            if message.author.id in get_all_ids():
+            if message.author.id in id_list:
                 cur.execute("SELECT teho FROM autot WHERE id = ?", (message.author.id,))
                 author_power = cur.fetchone()[0]
                 rekkari_power = rekkariJson["powerHp"]
