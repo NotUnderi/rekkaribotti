@@ -31,14 +31,18 @@ async def ping(ctx):
 async def on_message(message):
     if message.author == bot.user:
         return
-    pattern = re.compile(r'\b[a-zA-Z]{3}-\d{3}\b')
+    pattern = re.compile(r'\b[a-zA-Z]{2,3}-?\d{2,3}\b')
     rekkari = pattern.search(message.content)
     alala = ["manufacturer","modelName","description","registerDate","drive","fuel","cylinders","cylinderVolumeLiters","powerHp","powerKW"]
     if rekkari:
-        rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
-        rekkariJson = rekkariRequest.json()
-        await message.channel.send('\n'.join([f"{key}: {rekkariJson.get(key, 'N/A')}" for key in alala]))
-        print(rekkariJson["manufacturer"])
+        try:
+            rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
+            print(rekkariRequest)
+            rekkariJson = rekkariRequest.json()
+            await message.channel.send('\n'.join([f"{key}: {rekkariJson.get(key, 'N/A')}" for key in alala]))
+            print(rekkariJson["manufacturer"])
+        except Exception:
+            await message.channel.send("Rekkaria ei löytynyt")
 
     await bot.process_commands(message)
 
