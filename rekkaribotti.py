@@ -31,7 +31,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 pattern = re.compile(r'\b[a-zA-ZäöÄÖ]{1,3}-?\d{1,3}\b')
-strictPattern = re.compile(r'\b[a-zA-Z]{3}-?\d{3}\b')
+strictPattern = re.compile(r'\b[a-zA-ZäöÄÖ]{3}-?\d{3}\b')
 
 def get_cached_rekkari():
     cur.execute("SELECT rekkari FROM cache")
@@ -52,7 +52,7 @@ def get_licenseplate(rekkari, id, large):
         cur.execute("SELECT * FROM cache WHERE rekkari = ?", (rekkari.group(),))
         rekkariJson = cur.fetchone()
         cur.execute("UPDATE cache SET seekCount = seekCount + 1 WHERE rekkari = ?", (rekkari.group(),))
-        cache.commit()
+        cars.commit()
    # else:
    #     try:
    #         rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
