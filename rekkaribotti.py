@@ -1,4 +1,4 @@
-import os
+import sys,os
 import re
 import requests
 from dotenv import load_dotenv
@@ -7,13 +7,16 @@ from discord.ext import commands
 import sqlite3
 
 cars = sqlite3.connect('autot.db')
+cars.row_factory = sqlite3.Row   
 cur = cars.cursor()
 
 cur.execute("CREATE TABLE IF NOT EXISTS autot (id INTEGER PRIMARY KEY, auto TEXT, teho INTEGER, rekkari TEXT)")
 cur.execute("CREATE TABLE IF NOT EXISTS cache (rekkari TEXT, vinNumber PRIMARY KEY, manufacturer TEXT, modelName TEXT, description TEXT, registerDate TEXT, drive TEXT, fuel TEXT, cylinders INTEGER, cylinderVolumeLiters INTEGER, PowerHp INTEGER, PowerKW INTEGER, seekCount INTEGER)")
+
 cars.commit()
 
 cur.execute("SELECT * FROM cache")
+
 rows = cur.fetchall()
 for row in rows:
     print(row)
@@ -48,23 +51,29 @@ id_list = get_all_ids()
 def get_licenseplate(rekkari, id, large):
     message = []
     if rekkari.group() in cached_list:
-        
-        cur.execute("SELECT * FROM cache WHERE rekkari = ?", (rekkari.group(),))
+        rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
+        rekkariJson = rekkariRequest.json()
+
+        cur.execute("SELECT * FROM cache WHERE vinNumber = ?", (rekkariJson["vinNumer"],))
         rekkariJson = cur.fetchone()
         cur.execute("UPDATE cache SET seekCount = seekCount + 1 WHERE rekkari = ?", (rekkari.group(),))
         cars.commit()
-   # else:
-   #     try:
-   #         rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
-   #         rekkariJson = rekkariRequest.json()
-   #         cur2.execute("INSERT INTO cache (rekkari, vinNumber, manufacturer, modelName, description, registerDate, drive, fuel, cylinders, cylinderVolumeLiters, PowerHp, PowerKW, seekCount) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (rekkari.group(),rekkariJson["vinNumber"], rekkariJson["manufacturer"], rekkariJson["modelName"], rekkariJson["description"], rekkariJson["registerDate"], rekkariJson["drive"], rekkariJson["fuel"], rekkariJson["cylinders"], rekkariJson["cylinderVolumeLiters"], rekkariJson["powerHp"], rekkariJson["powerKW"], 1))
-   #         cache.commit()
-   #         cached_list.append(rekkari.group())
+        print(rekkariJson)
+    else:
+        try:
+            rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
+            rekkariJson = rekkariRequest.json()
+            cur.execute("INSERT INTO cache (rekkari, vinNumber, manufacturer, modelName, description, registerDate, drive, fuel, cylinders, cylinderVolumeLiters, PowerHp, PowerKW, seekCount) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (rekkari.group(),rekkariJson["vinNumber"], rekkariJson["manufacturer"], rekkariJson["modelName"], rekkariJson["description"], rekkariJson["registerDate"], rekkariJson["drive"], rekkariJson["fuel"], rekkariJson["cylinders"], rekkariJson["cylinderVolumeLiters"], rekkariJson["powerHp"], rekkariJson["powerKW"], 1))
+            cars.commit()
+            cached_list.append(rekkari.group())
+            print(rekkariJson)
 
-#        except Exception as e:
- #           print(e)
+        except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            print(e)
+            return "Rekkaria ei löytynyt"
         
-    message.append(rekkariJson["Manufacturer"] + " " + rekkariJson["ModelName"] + " " + rekkariJson["description"])
+    message.append(rekkariJson["manufacturer"] + " " + rekkariJson["modelName"] + " " + rekkariJson["description"])
     message.append(f"Teho : **{rekkariJson['powerHp']} hv**")
     message.append(f"Sylinteritilavuus: **{rekkariJson['cylinderVolumeLiters']}**")
     message.append(f"Sylinterimäärä: **{rekkariJson['cylinders']}**")
@@ -73,7 +82,10 @@ def get_licenseplate(rekkari, id, large):
         message.append(f"Vetotapa: **{rekkariJson['drive']}**")
         message.append(f"Polttoaine: **{rekkariJson['fuel']}**")
         message.append(f"VIN: **{rekkariJson['vinNumber']}**")
-        message.append(f"Hakuja: {rekkariJson['seekCount']}")
+        try: 
+            message.append(f"Hakuja: {rekkariJson['seekCount']}") 
+        except Exception as e:
+            message.append("Hakuja: 0")
 
     if id in id_list:
         cur.execute("SELECT teho FROM autot WHERE id = ?", (message.author.id,))
@@ -85,7 +97,7 @@ def get_licenseplate(rekkari, id, large):
     
 
 
-117967143731068932
+#117967143731068932
 
 @bot.event
 async def on_ready():
@@ -100,17 +112,17 @@ async def auto(ctx):
     rekkari = pattern.search(ctx.message.content)
     if rekkari:
         try:
-            get_licenseplate(rekkari, ctx.author.id, False)
+            rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
             rekkariJson = rekkariRequest.json()
             cur.execute("SELECT * FROM autot WHERE id = ?", (ctx.author.id,))
             print(ctx.author.id)
             if cur.fetchone():
-                cur.execute("UPDATE autot SET auto = ?, teho = ? WHERE id = ?", (rekkariJson["manufacturer"] + "" + rekkariJson["modelName"], rekkariJson["powerHp"], ctx.author.id))
+                cur.execute("UPDATE autot SET auto = ?, teho = ?, rekkari = ?, WHERE id = ?", (rekkariJson["manufacturer"] + "" + rekkariJson["modelName"], rekkariJson["powerHp"],rekkari.group(), ctx.author.id))
                 cars.commit()
                 await ctx.send("Auto päivitetty tietokannassa \n ")
                 return
-            auto = [ctx.author.id, rekkariJson["manufacturer"] + "" + rekkariJson["modelName"], rekkariJson["powerHp"]]
-            cur.execute("INSERT INTO autot VALUES( ?, ?, ?)",auto)
+            auto = [ctx.author.id, rekkariJson["manufacturer"] + "" + rekkariJson["modelName"], rekkariJson["powerHp"], rekkari.group()]
+            cur.execute("INSERT INTO autot VALUES( ?, ?, ?, ?)",auto)
             await ctx.send(f"Auto {rekkariJson['manufacturer']} {rekkariJson['modelName']} lisätty tietokantaan")
             cars.commit()
             id_list = get_all_ids()
@@ -127,7 +139,7 @@ async def autonteho(ctx):
             return
         if ctx.author.id in id_list:
             new_power = int(ctx.message.content[11:])
-            cur.execute("UPDATE autot SET teho = ? WHERE id = ?", (new_power, ctx.author.id))
+            cur.execute("UPDATE autot SET teho = ? WHERE id = ?", (new_power, ctx.message.author.id))
             cars.commit()
             await ctx.send(f"Teho päivitetty: {new_power} hv")
             return
@@ -143,9 +155,11 @@ async def r(ctx):
     rekkari = pattern.search(ctx.message.content)
     if rekkari:
         try:
-            await ctx.send(get_licenseplate())
-        except Exception:
-            await ctx.send("Rekkaria ei löytynyt")
+            await ctx.send(get_licenseplate(rekkari, ctx.message.author.id, True))
+        except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            print(e,exc_type, exc_tb.tb_lineno)
+            
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -156,8 +170,8 @@ async def on_message(message):
         try:
             await message.channel.send(get_licenseplate(rekkari, message.author.id, False))
         except Exception as e:
-            print("Rekkaria ei löytynyt")
-            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            print(e,exc_type, exc_tb.tb_lineno)
 
     await bot.process_commands(message)
 
