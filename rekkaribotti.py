@@ -7,7 +7,9 @@ from discord.ext import commands
 import sqlite3
 import datetime
 from collections import defaultdict
+import pytz
 
+eest = pytz.timezone('Europe/Helsinki')
 
 cars = sqlite3.connect('autot.db')
 cars.row_factory = sqlite3.Row
@@ -50,7 +52,7 @@ def get_cached_rekkari():
     cur.execute("SELECT rekkari FROM cache")
     rekkarit = cur.fetchall()
     return [rekkari[0] for rekkari in rekkarit]
-cached_rekkari_list = get_cached_vin()
+cached_rekkari_list = get_cached_rekkari()
 
 def get_all_ids():
     cur.execute("SELECT id FROM autot")
@@ -71,19 +73,17 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
         cur.execute("SELECT * FROM cache WHERE rekkari = ?", (rekkari.group(),))
         rekkariJson = dict(cur.fetchone())
         if full_message is not None:
-            cur.execute("INSERT INTO autot_messages (message, vinNumber, time) VALUES (?, ?, ?)",(full_message, rekkariJson["vinNumber"], datetime.datetime.now()))
+            cur.execute("INSERT INTO autot_messages (message, vinNumber, time) VALUES (?, ?, ?)",(full_message, rekkariJson["vinNumber"], datetime.datetime.now(eest)))
             cars.commit()
-        #cur.execute("UPDATE cache SET seekCount = seekCount + 1 WHERE rekkari = ?", (rekkari.group(),))
-        #cur.execute("UPDATE cache SET time = ? WHERE rekkari = ?", (datetime.datetime.now(), rekkari.group()))
     else:
         rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
         if rekkariRequest.status_code == 200:
             rekkariJson = rekkariRequest.json()
             if rekkariJson["vinNumber"] in cached_vin_list:
-                cur.execute("SELECT * FROM cache WHERE rekkari = ?", (rekkari.group(),))
+                cur.execute("SELECT * FROM cache WHERE vinNumber = ?", (rekkariJson["vinNumber"],))
                 rekkariJson = dict(cur.fetchone())
                 if full_message is not None:
-                    cur.execute("INSERT INTO autot_messages (message, vinNumber, time) VALUES (?, ?, ?)",(full_message, rekkariJson["vinNumber"], datetime.datetime.now()))
+                    cur.execute("INSERT INTO autot_messages (message, vinNumber, time) VALUES (?, ?, ?)",(full_message, rekkariJson["vinNumber"], datetime.datetime.now(eest)))
                 cars.commit()
             else:
                 cur.execute("INSERT INTO cache (rekkari, vinNumber, manufacturer, modelName, description, registerDate, drive, fuel, cylinders, cylinderVolumeLiters, PowerHp, PowerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (rekkari.group(),rekkariJson["vinNumber"], rekkariJson["manufacturer"], rekkariJson["modelName"], rekkariJson["description"], rekkariJson["registerDate"], rekkariJson["drive"], rekkariJson["fuel"], rekkariJson["cylinders"], rekkariJson["cylinderVolumeLiters"], rekkariJson["powerHp"], rekkariJson["powerKW"]))
@@ -138,8 +138,8 @@ async def ping(ctx):
 async def auto(ctx):
     print(ctx.author.id)
     rekkari = pattern.search(ctx.message.content)
-    if id == 117967143731068932: rekkari = "zgt800"
-    if id == 291874573870432256: rekkari = "vei475"
+    if id == 117967143731068932: rekkari = pattern.search("zgt800")
+    if id == 291874573870432256: rekkari = pattern.search("vei475")
     if rekkari:
         try:
             rekkariJson = get_licenseplate(rekkari, ctx.author.id, False, True, "[Asetettu omaksi autoksi]")
@@ -205,7 +205,7 @@ def is_banned(id):
     if id not in ban_list:
         return False  # Only users in the ban_list are restricted
 
-    current_time = datetime.datetime.now()
+    current_time = datetime.datetime.now(eest)
     # Get the list of timestamps for the user
     timestamps = ban_check_timestamps[id]
 
@@ -221,7 +221,7 @@ def is_banned(id):
 def record_check(id):
     """Record a license plate check for users in the ban_list."""
     if id in ban_list:
-        current_time = datetime.datetime.now()
+        current_time = datetime.datetime.now(eest)
         ban_check_timestamps[id].append(current_time)
 
 bot.run(TOKEN)
