@@ -14,7 +14,8 @@ cars.row_factory = sqlite3.Row
 cur = cars.cursor()
 
 cur.execute("CREATE TABLE IF NOT EXISTS autot (id INTEGER PRIMARY KEY, auto TEXT, teho INTEGER, rekkari TEXT)")
-cur.execute("CREATE TABLE IF NOT EXISTS cache (rekkari TEXT, vinNumber PRIMARY KEY, manufacturer TEXT, modelName TEXT, description TEXT, registerDate TEXT, drive TEXT, fuel TEXT, cylinders INTEGER, cylinderVolumeLiters INTEGER, powerHp INTEGER, powerKW INTEGER, seekCount INTEGER, time TEXT)")
+cur.execute("CREATE TABLE IF NOT EXISTS autot_messages (id INTEGER PRIMARY KEY, message TEXT, vinNumber TEXT, time TEXT)")
+cur.execute("CREATE TABLE IF NOT EXISTS cache (rekkari TEXT, vinNumber PRIMARY KEY, manufacturer TEXT, modelName TEXT, description TEXT, registerDate TEXT, drive TEXT, fuel TEXT, cylinders INTEGER, cylinderVolumeLiters INTEGER, powerHp INTEGER, powerKW INTEGER)")
 cars.commit()
 
 cur.execute("SELECT * FROM cache")
@@ -57,7 +58,7 @@ def get_all_ids():
     return [id[0] for id in ids]
 id_list = get_all_ids()
 
-def get_licenseplate(rekkari:str, id:int, large:bool, info:bool) -> str | dict:
+def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:str|None=None) -> str | dict:
     message = []
 
     if is_banned(id):  
@@ -69,9 +70,11 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool) -> str | dict:
         
         cur.execute("SELECT * FROM cache WHERE rekkari = ?", (rekkari.group(),))
         rekkariJson = dict(cur.fetchone())
-        cur.execute("UPDATE cache SET seekCount = seekCount + 1 WHERE rekkari = ?", (rekkari.group(),))
-        cur.execute("UPDATE cache SET time = ? WHERE rekkari = ?", (datetime.datetime.now(), rekkari.group()))
-        cars.commit()
+        if full_message is not None:
+            cur.execute("INSERT INTO autot_messages (message, vinNumber, time) VALUES (?, ?, ?)",(full_message, rekkariJson["vinNumber"], datetime.datetime.now()))
+            cars.commit()
+        #cur.execute("UPDATE cache SET seekCount = seekCount + 1 WHERE rekkari = ?", (rekkari.group(),))
+        #cur.execute("UPDATE cache SET time = ? WHERE rekkari = ?", (datetime.datetime.now(), rekkari.group()))
     else:
         rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
         if rekkariRequest.status_code == 200:
@@ -79,20 +82,22 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool) -> str | dict:
             if rekkariJson["vinNumber"] in cached_vin_list:
                 cur.execute("SELECT * FROM cache WHERE rekkari = ?", (rekkari.group(),))
                 rekkariJson = dict(cur.fetchone())
-                cur.execute("UPDATE cache SET seekCount = seekCount + 1 WHERE vinNumber = ?", (rekkariJson["vinNumber"],))
-                cur.execute("UPDATE cache SET time = ? WHERE vinNumber = ?", (datetime.datetime.now(), rekkariJson["vinNumber"]))
+                if full_message is not None:
+                    cur.execute("INSERT INTO autot_messages (message, vinNumber, time) VALUES (?, ?, ?)",(full_message, rekkariJson["vinNumber"], datetime.datetime.now()))
                 cars.commit()
             else:
-                cur.execute("INSERT INTO cache (rekkari, vinNumber, manufacturer, modelName, description, registerDate, drive, fuel, cylinders, cylinderVolumeLiters, PowerHp, PowerKW, seekCount, time) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (rekkari.group(),rekkariJson["vinNumber"], rekkariJson["manufacturer"], rekkariJson["modelName"], rekkariJson["description"], rekkariJson["registerDate"], rekkariJson["drive"], rekkariJson["fuel"], rekkariJson["cylinders"], rekkariJson["cylinderVolumeLiters"], rekkariJson["powerHp"], rekkariJson["powerKW"], 1, datetime.datetime.now()))
+                cur.execute("INSERT INTO cache (rekkari, vinNumber, manufacturer, modelName, description, registerDate, drive, fuel, cylinders, cylinderVolumeLiters, PowerHp, PowerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (rekkari.group(),rekkariJson["vinNumber"], rekkariJson["manufacturer"], rekkariJson["modelName"], rekkariJson["description"], rekkariJson["registerDate"], rekkariJson["drive"], rekkariJson["fuel"], rekkariJson["cylinders"], rekkariJson["cylinderVolumeLiters"], rekkariJson["powerHp"], rekkariJson["powerKW"]))
                 cars.commit()
                 cached_vin_list.append(rekkariJson["vinNumber"])
-                rekkariJson["seekCount"] = 1
-                rekkariJson["time"] = "Ei aikaisemmin"
-
         else:
             message.append("Rekkaria ei löytynyt")
             message.append("Palvelin antoi vastauksen: " + str(rekkariRequest.status_code))
             return('\n'.join(message))
+    cur.execute("SELECT time, message FROM autot_messages WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (rekkariJson["vinNumber"],))
+    autot_messages = [dict(x) for x in cur.fetchall()]
+    rekkariJson["autot_messages"] = autot_messages
+    cur.execute("SELECT COUNT(*) FROM autot_messages WHERE vinNumber = ?", (rekkariJson["vinNumber"],))
+    rekkariJson['total_mentions'] = cur.fetchone()['COUNT(*)']
     if info : return rekkariJson
 
     message.append(rekkariJson["manufacturer"] + " " + rekkariJson["modelName"] + " " + rekkariJson["description"])
@@ -104,14 +109,13 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool) -> str | dict:
         message.append(f"Vetotapa: **{rekkariJson['drive']}**")
         message.append(f"Polttoaine: **{rekkariJson['fuel']}**")
         message.append(f"VIN: **{rekkariJson['vinNumber']}**")
-        if rekkariJson["vinNumber"] in cached_vin_list:
-            message.append(f"Hakuja: {rekkariJson['seekCount']}")
-            if rekkariJson['seekCount'] <= 1:
-                message.append(f"Viimeksi nähty: {rekkariJson['time']}")
-            else:
-                last_seen = datetime.datetime.strptime(rekkariJson['time'], "%Y-%m-%d %H:%M:%S.%f")
+        if rekkariJson["autot_messages"]:
+            message.append(f"Hakukertoja yhteensä:**{rekkariJson['total_mentions']}**")
+            message.append(f"**Viimeiset haut:**")
+            for autot_message in rekkariJson["autot_messages"]:
+                last_seen = datetime.datetime.strptime(autot_message['time'], "%Y-%m-%d %H:%M:%S.%f")
                 human_readable_time = last_seen.strftime("%d.%m.%Y %H:%M:%S")
-                message.append(f"Viimeksi nähty: {human_readable_time}")
+                message.append(f"**{human_readable_time}**: {autot_message['message']}")
 
     if id in id_list:
         cur.execute("SELECT teho FROM autot WHERE id = ?", (id,))
@@ -138,7 +142,7 @@ async def auto(ctx):
     if id == 291874573870432256: rekkari = "vei475"
     if rekkari:
         try:
-            rekkariJson = get_licenseplate(rekkari, ctx.author.id, False, True)
+            rekkariJson = get_licenseplate(rekkari, ctx.author.id, False, True, "[Asetettu omaksi autoksi]")
             cur.execute("SELECT * FROM autot WHERE id = ?", (ctx.author.id,))
             print(ctx.author.id)
             if cur.fetchone():
@@ -183,7 +187,7 @@ async def autonteho(ctx):
 async def r(ctx):
     rekkari = pattern.search(ctx.message.content)
     if rekkari:
-        await ctx.send(get_licenseplate(rekkari,ctx.author.id, True, False))
+        await ctx.send(get_licenseplate(rekkari,ctx.author.id, True, False,"[Haettu tiedot]"))
 
 @bot.event
 async def on_message(message):
@@ -192,7 +196,7 @@ async def on_message(message):
     strictPattern = re.compile(r'\b[a-zA-Z]{3}-?\d{3}\b')
     rekkari = strictPattern.search(message.content)
     if rekkari and not message.content.startswith('!'):
-            await message.channel.send(get_licenseplate(rekkari, message.author.id, False, False))
+            await message.channel.send(get_licenseplate(rekkari, message.author.id, False, False, message.content[:50]))
 
     await bot.process_commands(message)
 
