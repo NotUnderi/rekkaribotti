@@ -49,7 +49,7 @@ def get_cached_rekkari():
     cur.execute("SELECT rekkari FROM cache")
     rekkarit = cur.fetchall()
     return [rekkari[0] for rekkari in rekkarit]
-cached_rekkari_list = get_cached_vin()
+cached_rekkari_list = get_cached_rekkari()
 
 def get_all_ids():
     cur.execute("SELECT id FROM autot")
@@ -134,8 +134,8 @@ async def ping(ctx):
 async def auto(ctx):
     print(ctx.author.id)
     rekkari = pattern.search(ctx.message.content)
-    if id == 117967143731068932: rekkari = "zgt800"
-    if id == 291874573870432256: rekkari = "vei475"
+    if id == 117967143731068932: rekkari = pattern.search("zgt800")
+    if id == 291874573870432256: rekkari = pattern.search("vei475")
     if rekkari:
         try:
             rekkariJson = get_licenseplate(rekkari, ctx.author.id, False, True)
