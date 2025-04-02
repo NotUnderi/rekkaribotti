@@ -1,4 +1,4 @@
-import os
+import sys,os
 import re
 import requests
 from dotenv import load_dotenv
@@ -18,6 +18,7 @@ cur.execute("CREATE TABLE IF NOT EXISTS cache (rekkari TEXT, vinNumber PRIMARY K
 cars.commit()
 
 cur.execute("SELECT * FROM cache")
+
 rows = cur.fetchall()
 for row in rows:
     print(row)
@@ -167,7 +168,7 @@ async def autonteho(ctx):
             
         if ctx.author.id in id_list:
             new_power = int(ctx.message.content[11:])
-            cur.execute("UPDATE autot SET teho = ? WHERE id = ?", (new_power, ctx.author.id))
+            cur.execute("UPDATE autot SET teho = ? WHERE id = ?", (new_power, ctx.message.author.id))
             cars.commit()
             await ctx.send(f"Teho päivitetty: {new_power} hv")
             return
