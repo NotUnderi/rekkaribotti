@@ -187,7 +187,7 @@ async def autonteho(ctx):
 async def r(ctx):
     rekkari = pattern.search(ctx.message.content)
     if rekkari:
-        await ctx.send(get_licenseplate(rekkari,ctx.author.id, True, False,"[Haettu tiedot]"))
+        await ctx.send(get_licenseplate(rekkari,ctx.author.id, True, False,ctx.message.author.name + " haki tiedot"))
 
 @bot.event
 async def on_message(message):
@@ -196,7 +196,7 @@ async def on_message(message):
     strictPattern = re.compile(r'\b[a-zA-Z]{3}-?\d{3}\b')
     rekkari = strictPattern.search(message.content)
     if rekkari and not message.content.startswith('!'):
-            await message.channel.send(get_licenseplate(rekkari, message.author.id, False, False, message.content[:50]))
+            await message.channel.send(get_licenseplate(rekkari, message.author.id, False, False, message.author.name + ": " + message.content[:50]))
 
     await bot.process_commands(message)
 
