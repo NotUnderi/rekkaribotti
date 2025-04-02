@@ -113,7 +113,7 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
             message.append(f"Hakukertoja yhteensä:**{rekkariJson['total_mentions']}**")
             message.append(f"**Viimeiset haut:**")
             for autot_message in rekkariJson["autot_messages"]:
-                last_seen = datetime.datetime.strptime(autot_message['time'], "%Y-%m-%d %H:%M:%S.%f")
+                last_seen = datetime.datetime.fromisoformat(autot_message['time'])
                 human_readable_time = last_seen.strftime("%d.%m.%Y %H:%M:%S")
                 message.append(f"**{human_readable_time}**: {autot_message['message']}")
 
