@@ -208,7 +208,7 @@ def is_banned(id):
     timestamps = ban_check_timestamps[id]
 
     # Remove timestamps older than 1 hour
-    ban_check_timestamps[id] = [t for t in timestamps if (current_time - t).total_seconds() < 3600]
+    ban_check_timestamps[id] = [t for t in timestamps if (current_time - t).total_seconds() < 36000]
 
     # Check if the user has made 10 or more checks in the last hour
     if len(ban_check_timestamps[id]) >= 10:
