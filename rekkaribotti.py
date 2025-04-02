@@ -23,7 +23,7 @@ rows = cur.fetchall()
 for row in rows:
     print(row)
 
-ban_list = [291874573870432256,117967143731068932,255412471614013441]
+ban_list = [291874573870432256,117967143731068932]
 ban_check_timestamps = defaultdict(list)
 
 load_dotenv()
