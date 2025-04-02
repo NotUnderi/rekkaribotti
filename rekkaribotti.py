@@ -27,7 +27,7 @@ ban_list = [291874573870432256,117967143731068932,255412471614013441]
 ban_check_timestamps = defaultdict(list)
 
 load_dotenv()
-TOKEN = os.getenv('nekru2')
+TOKEN = os.getenv('DISCORD_TOKEN')
 
 if TOKEN is None:
     raise ValueError("No DISCORD_TOKEN found in environment variables")
