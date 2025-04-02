@@ -77,7 +77,7 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool) -> str | dict:
         if rekkariRequest.status_code == 200:
             rekkariJson = rekkariRequest.json()
             if rekkariJson["vinNumber"] in cached_vin_list:
-                cur.execute("SELECT * FROM cache WHERE rekkari = ?", (rekkari.group(),))
+                cur.execute("SELECT * FROM cache WHERE vinNumber = ?", (rekkariJson["vinNumber"],))
                 rekkariJson = dict(cur.fetchone())
                 cur.execute("UPDATE cache SET seekCount = seekCount + 1 WHERE vinNumber = ?", (rekkariJson["vinNumber"],))
                 cur.execute("UPDATE cache SET time = ? WHERE vinNumber = ?", (datetime.datetime.now(), rekkariJson["vinNumber"]))
