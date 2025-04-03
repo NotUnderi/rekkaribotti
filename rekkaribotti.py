@@ -62,7 +62,6 @@ id_list = get_all_ids()
 
 def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:str|None=None) -> str | dict:
     message = []
-
     if is_banned(id):  
         record_check(id)
         return "Homonesto aktivoitu"
