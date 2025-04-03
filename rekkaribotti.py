@@ -198,7 +198,7 @@ async def on_message(message):
     strictPattern = re.compile(r'\b[a-zA-Z]{3}-?\d{3}\b')
     rekkari = strictPattern.search(message.content)
     if rekkari and not message.content.startswith('!'):
-            if True :          #manually set to true if old plates exist and run once
+            if False :          #manually set to true if old plates exist and run once
                 update_cached_rekkari()
                 update_owned_rekkari()
             rekkari = strictPattern.search(normalize__rekkari(rekkari.group()))
