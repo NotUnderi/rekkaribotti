@@ -198,7 +198,7 @@ async def on_message(message):
     strictPattern = re.compile(r'\b[a-zA-Z]{3}-?\d{3}\b')
     rekkari = strictPattern.search(message.content)
     if rekkari and not message.content.startswith('!'):
-            if False :          #manually set to true if old plates exist and run once
+            if True :          #manually set to true if old plates exist and run once
                 update_cached_rekkari()
                 update_owned_rekkari()
             rekkari = strictPattern.search(normalize__rekkari(rekkari.group()))
@@ -264,7 +264,7 @@ def update_owned_rekkari():
         if plate and isinstance(plate, str):
             normalized_plate = normalize__rekkari(plate)
             if plate != normalized_plate:
-                cur.execute(f"UPDATE cache SET rekkari = ? WHERE id = ?", (normalized_plate, record_id))
+                cur.execute(f"UPDATE autot SET rekkari = ? WHERE id = ?", (normalized_plate, record_id))
         
     cars.commit()
 
