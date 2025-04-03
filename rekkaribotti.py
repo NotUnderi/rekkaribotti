@@ -142,6 +142,7 @@ async def auto(ctx):
     if id == 291874573870432256: rekkari = pattern.search("vei475")
     if rekkari:
         try:
+            rekkari = pattern.search(normalize__rekkari(rekkari.group()))
             rekkariJson = get_licenseplate(rekkari, ctx.author.id, False, True, "[Asetettu omaksi autoksi]")
             cur.execute("SELECT * FROM autot WHERE id = ?", (ctx.author.id,))
             print(ctx.author.id)
@@ -187,6 +188,7 @@ async def autonteho(ctx):
 async def r(ctx):
     rekkari = pattern.search(ctx.message.content)
     if rekkari:
+        rekkari = pattern.search(normalize__rekkari(rekkari.group()))
         await ctx.send(get_licenseplate(rekkari,ctx.author.id, True, False,ctx.message.author.name + " haki tiedot"))
 
 @bot.event
@@ -196,6 +198,10 @@ async def on_message(message):
     strictPattern = re.compile(r'\b[a-zA-Z]{3}-?\d{3}\b')
     rekkari = strictPattern.search(message.content)
     if rekkari and not message.content.startswith('!'):
+            if False :          #manually set to true if old plates exist and run once
+                update_cached_rekkari()
+                update_owned_rekkari()
+            rekkari = strictPattern.search(normalize__rekkari(rekkari.group()))
             await message.channel.send(get_licenseplate(rekkari, message.author.id, False, False, message.author.name + ": " + message.content[:50]))
 
     await bot.process_commands(message)
@@ -223,5 +229,43 @@ def record_check(id):
     if id in ban_list:
         current_time = datetime.datetime.now(eest)
         ban_check_timestamps[id].append(current_time)
+
+def normalize__rekkari(rekkari:str) -> str:
+    rekkari = rekkari.upper()
+    if re.compile(r'\b-\b').search(rekkari) != None:
+        return rekkari
+    rekkari = re.sub(r'([A-Za-z]+)(\d+)', r'\1-\2', rekkari)
+    return rekkari
+
+def update_cached_rekkari():
+    cur.execute(f"SELECT vinNumber, rekkari FROM cache")
+    rows = cur.fetchall()
+    print(rows)
+    for row in rows:
+        row_dict = dict(row)  # Convert sqlite3.Row to a dictionary
+        record_id = row_dict["vinNumber"]
+        plate = row_dict["rekkari"]
+
+        if plate and isinstance(plate, str):
+            normalized_plate = normalize__rekkari(plate)
+            if plate != normalized_plate:
+                cur.execute(f"UPDATE cache SET rekkari = ? WHERE vinNumber = ?", (normalized_plate, record_id))
+        
+    cars.commit()
+def update_owned_rekkari():
+    cur.execute(f"SELECT id, rekkari FROM autot")
+    rows = cur.fetchall()
+    print(rows)
+    for row in rows:
+        row_dict = dict(row) 
+        record_id = row_dict["id"]
+        plate = row_dict["rekkari"]
+
+        if plate and isinstance(plate, str):
+            normalized_plate = normalize__rekkari(plate)
+            if plate != normalized_plate:
+                cur.execute(f"UPDATE cache SET rekkari = ? WHERE id = ?", (normalized_plate, record_id))
+        
+    cars.commit()
 
 bot.run(TOKEN)
