@@ -42,18 +42,13 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 pattern = re.compile(r'\b[a-zA-ZäöÄÖ]{1,3}-?\d{1,3}\b')
 strictPattern = re.compile(r'\b[a-zA-ZäöÄÖ]{3}-?\d{3}\b')
 
-def get_cached_vin():
-    cur.execute("SELECT vinNumber FROM cache")
-    VINs = cur.fetchall()
-    return [vinNumber[0] for vinNumber in VINs]
-cached_vin_list = get_cached_vin()
 
 def get_cached_rekkari():
     cur.execute("SELECT rekkari FROM cache")
     rekkarit = cur.fetchall()
     return [rekkari[0] for rekkari in rekkarit]
 cached_rekkari_list = get_cached_rekkari()
-
+print(cached_rekkari_list)
 def get_all_ids():
     cur.execute("SELECT id FROM autot")
     ids = cur.fetchall()
@@ -71,23 +66,14 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
         
         cur.execute("SELECT * FROM cache WHERE rekkari = ?", (rekkari.group(),))
         rekkariJson = dict(cur.fetchone())
-        if full_message is not None:
-            cur.execute("INSERT INTO autot_messages (message, vinNumber, time) VALUES (?, ?, ?)",(full_message, rekkariJson["vinNumber"], datetime.datetime.now(eest)))
-            cars.commit()
+        
     else:
         rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
         if rekkariRequest.status_code == 200:
             rekkariJson = rekkariRequest.json()
-            if rekkariJson["vinNumber"] in cached_vin_list:
-                cur.execute("SELECT * FROM cache WHERE vinNumber = ?", (rekkariJson["vinNumber"],))
-                rekkariJson = dict(cur.fetchone())
-                if full_message is not None:
-                    cur.execute("INSERT INTO autot_messages (message, vinNumber, time) VALUES (?, ?, ?)",(full_message, rekkariJson["vinNumber"], datetime.datetime.now(eest)))
-                cars.commit()
-            else:
-                cur.execute("INSERT INTO cache (rekkari, vinNumber, manufacturer, modelName, description, registerDate, drive, fuel, cylinders, cylinderVolumeLiters, PowerHp, PowerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (rekkari.group(),rekkariJson["vinNumber"], rekkariJson["manufacturer"], rekkariJson["modelName"], rekkariJson["description"], rekkariJson["registerDate"], rekkariJson["drive"], rekkariJson["fuel"], rekkariJson["cylinders"], rekkariJson["cylinderVolumeLiters"], rekkariJson["powerHp"], rekkariJson["powerKW"]))
-                cars.commit()
-                cached_vin_list.append(rekkariJson["vinNumber"])
+            cur.execute("INSERT INTO cache (rekkari, vinNumber, manufacturer, modelName, description, registerDate, drive, fuel, cylinders, cylinderVolumeLiters, PowerHp, PowerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (rekkari.group(),rekkariJson["vinNumber"], rekkariJson["manufacturer"], rekkariJson["modelName"], rekkariJson["description"], rekkariJson["registerDate"], rekkariJson["drive"], rekkariJson["fuel"], rekkariJson["cylinders"], rekkariJson["cylinderVolumeLiters"], rekkariJson["powerHp"], rekkariJson["powerKW"]))
+            cars.commit()
+            cached_rekkari_list.append(rekkari.group())
         else:
             message.append("Rekkaria ei löytynyt")
             message.append("Palvelin antoi vastauksen: " + str(rekkariRequest.status_code))
@@ -121,7 +107,10 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
         author_power = cur.fetchone()[0]
         rekkari_power = rekkariJson["powerHp"]
         diff = (author_power / rekkari_power)
-        message.append(f"Rekkarin teho: **{rekkari_power} hv**\nTehoero: **{diff:.2f}x**\nAutosi teho: {author_power} hv")
+        message.append(f"Tehoero: **{diff:.2f}x**\nAutosi teho: {author_power} hv")
+    if full_message is not None:
+            cur.execute("INSERT INTO autot_messages (message, vinNumber, time) VALUES (?, ?, ?)",(full_message, rekkariJson["vinNumber"], datetime.datetime.now(eest)))
+            cars.commit()
     return('\n'.join(message))
     
 
