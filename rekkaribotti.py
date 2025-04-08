@@ -122,6 +122,29 @@ async def on_ready():
 @bot.command()
 async def ping(ctx):
     await ctx.send('Pong!')
+
+@bot.command()
+async def stats(ctx):
+    message = []
+    cur.execute("SELECT vinNumber,COUNT(*) FROM autot_messages GROUP BY vinNumber ORDER BY COUNT(*) DESC LIMIT 5")
+    total_mentions = cur.fetchall()
+    message.append("**Katsotuimmat:**")
+    for row in total_mentions:
+        print(row['vinNumber'])
+        cur.execute("SELECT rekkari, manufacturer, modelName FROM cache WHERE vinNumber = ?", (row['vinNumber'],))
+        rekkari = cur.fetchone()
+        message.append(f"**{rekkari[0]}** {rekkari[1]} {rekkari[2]} Katselukerrat: {row['COUNT(*)']}")
+    print(message)
+
+    message.append("\n")
+    message.append("**Tehokkaimmat**")
+    cur.execute("SELECT rekkari, manufacturer, modelName, powerHp FROM cache ORDER BY powerHp DESC LIMIT 5")
+    most_powerful = cur.fetchall()
+    for row in most_powerful:
+        message.append(f"**{row[0]}** {row[1]} {row[2]} Teho: {row[3]} hv")
+
+    await ctx.send('\n'.join(message))
+
 @bot.command()
 async def auto(ctx):
     print(ctx.author.id)
