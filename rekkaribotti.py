@@ -89,13 +89,14 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
     message.append(f"Teho : **{rekkariJson['powerHp']} hv**")
     message.append(f"Sylinteritilavuus: **{rekkariJson['cylinderVolumeLiters']}**")
     message.append(f"Sylinterimäärä: **{rekkariJson['cylinders']}**")
+    message.append(f"Hakukertoja yhteensä:**{rekkariJson['total_mentions']}**")
+
     if large == True:
         message.append(f"Rekisteröintipäivä: **{rekkariJson['registerDate']}**")
         message.append(f"Vetotapa: **{rekkariJson['drive']}**")
         message.append(f"Polttoaine: **{rekkariJson['fuel']}**")
         message.append(f"VIN: **{rekkariJson['vinNumber']}**")
         if rekkariJson["autot_messages"]:
-            message.append(f"Hakukertoja yhteensä:**{rekkariJson['total_mentions']}**")
             message.append(f"**Viimeiset haut:**")
             for autot_message in rekkariJson["autot_messages"]:
                 last_seen = datetime.datetime.fromisoformat(autot_message['time'])
