@@ -85,11 +85,10 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
     rekkariJson['total_mentions'] = cur.fetchone()['COUNT(*)']
     if info : return rekkariJson
 
-    message.append(rekkariJson["manufacturer"] + " " + rekkariJson["modelName"] + " " + rekkariJson["description"])
+    message.append(rekkariJson["manufacturer"] + " " + rekkariJson["modelName"] + " " + rekkariJson["description"] + " " + rekkariJson["registerDate"][:4])
     message.append(f"Teho : **{rekkariJson['powerHp']} hv**")
     message.append(f"Sylinteritilavuus: **{rekkariJson['cylinderVolumeLiters']}**")
     message.append(f"Sylinterimäärä: **{rekkariJson['cylinders']}**")
-    message.append(f"Hakukertoja yhteensä:**{rekkariJson['total_mentions']}**")
 
     if large == True:
         message.append(f"Rekisteröintipäivä: **{rekkariJson['registerDate']}**")
@@ -102,6 +101,7 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
                 last_seen = datetime.datetime.fromisoformat(autot_message['time'])
                 human_readable_time = last_seen.strftime("%d.%m.%Y %H:%M:%S")
                 message.append(f"**{human_readable_time}**: {autot_message['message']}")
+    message.append(f"Hakukertoja yhteensä:**{rekkariJson['total_mentions']}**")
 
     if id in id_list:
         cur.execute("SELECT teho FROM autot WHERE id = ?", (id,))
