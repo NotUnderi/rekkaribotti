@@ -133,8 +133,8 @@ async def stats(ctx):
     cur.execute("SELECT vinNumber,COUNT(*) FROM autot_messages GROUP BY vinNumber ORDER BY COUNT(*) DESC LIMIT 11")
     total_mentions = cur.fetchall()
 
-
-
+    message.append("**Autoja yhteensä:** " + str(len(cached_rekkari_list)))
+    message.append("\n")
     message.append("**Katsotuimmat:**") 
     for row in total_mentions:
         print(row['vinNumber'])
