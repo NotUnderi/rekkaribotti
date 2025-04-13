@@ -153,16 +153,13 @@ async def stats(ctx):
     for row in most_powerful:
         message.append(f"**{row[0]}** {row[1]} {row[2]} Teho: {row[3]} hv")
 
-    cur.execute("SELECT manufacturer, COUNT(*) as c FROM cache GROUP BY manufacturer ")
+    cur.execute("SELECT manufacturer, COUNT(*) as c FROM cache GROUP BY manufacturer ORDER BY c DESC LIMIT 5")
     manufacturers = cur.fetchall()
-    manu_list= {}
     message.append("\n")
     message.append("**Suosituimmat merkit:**")
     for row in manufacturers:
-        manu_list[row[0]] = row[1]
-    sorted_manufacturers = sorted(manu_list.items(), key=lambda x: x[1], reverse=True)[:5]
-    for manufacturer, count in sorted_manufacturers:
-        message.append(f"**{manufacturer}**: {count} kpl")
+        message.append(f"**{row[0]}**: {row[1]} kpl")
+    
     await ctx.send('\n'.join(message))
 
 @bot.command()
