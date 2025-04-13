@@ -26,6 +26,7 @@ rows = cur.fetchall()
 for row in rows:
     print(row)
 
+our_cars = ["XUJ-502","NHS-459","THF-574","ZGT-800","VEI-475","GJJ-202"]
 ban_list = [291874573870432256,117967143731068932]
 ban_check_timestamps = defaultdict(list)
 
@@ -127,16 +128,23 @@ async def ping(ctx):
 @bot.command()
 async def stats(ctx):
     message = []
-    cur.execute("SELECT vinNumber,COUNT(*) FROM autot_messages GROUP BY vinNumber ORDER BY COUNT(*) DESC LIMIT 5")
+    count=0
+
+    cur.execute("SELECT vinNumber,COUNT(*) FROM autot_messages GROUP BY vinNumber ORDER BY COUNT(*) DESC LIMIT 11")
     total_mentions = cur.fetchall()
-    message.append("**Katsotuimmat:**")
+
+    message.append("**Katsotuimmat:**") 
     for row in total_mentions:
         print(row['vinNumber'])
         cur.execute("SELECT rekkari, manufacturer, modelName FROM cache WHERE vinNumber = ?", (row['vinNumber'],))
         rekkari = cur.fetchone()
-        message.append(f"**{rekkari[0]}** {rekkari[1]} {rekkari[2]} Katselukerrat: {row['COUNT(*)']}")
+        if rekkari[0] not in our_cars:  # Skip cars in `our_cars`
+            message.append(f"**{rekkari[0]}** {rekkari[1]} {rekkari[2]} Katselukerrat: {row['COUNT(*)']}")
+            count += 1
+        if count == 5:  # Stop once 5 cars are added
+            break
     print(message)
-
+    
     message.append("\n")
     message.append("**Tehokkaimmat**")
     cur.execute("SELECT rekkari, manufacturer, modelName, powerHp FROM cache ORDER BY powerHp DESC LIMIT 5")
