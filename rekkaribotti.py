@@ -133,6 +133,8 @@ async def stats(ctx):
     cur.execute("SELECT vinNumber,COUNT(*) FROM autot_messages GROUP BY vinNumber ORDER BY COUNT(*) DESC LIMIT 11")
     total_mentions = cur.fetchall()
 
+
+
     message.append("**Katsotuimmat:**") 
     for row in total_mentions:
         print(row['vinNumber'])
@@ -143,7 +145,6 @@ async def stats(ctx):
             count += 1
         if count == 5:  # Stop once 5 cars are added
             break
-    print(message)
     
     message.append("\n")
     message.append("**Tehokkaimmat**")
@@ -152,6 +153,16 @@ async def stats(ctx):
     for row in most_powerful:
         message.append(f"**{row[0]}** {row[1]} {row[2]} Teho: {row[3]} hv")
 
+    cur.execute("SELECT manufacturer, COUNT(*) as c FROM cache GROUP BY manufacturer ")
+    manufacturers = cur.fetchall()
+    manu_list= {}
+    message.append("\n")
+    message.append("**Suosituimmat merkit:**")
+    for row in manufacturers:
+        manu_list[row[0]] = row[1]
+    sorted_manufacturers = sorted(manu_list.items(), key=lambda x: x[1], reverse=True)[:5]
+    for manufacturer, count in sorted_manufacturers:
+        message.append(f"**{manufacturer}**: {count} kpl")
     await ctx.send('\n'.join(message))
 
 @bot.command()
