@@ -161,6 +161,36 @@ async def stats(ctx):
         message.append(f"**{row[0]}**: {row[1]} kpl")
     
     await ctx.send('\n'.join(message))
+@bot.command()
+async def mopo(ctx):
+    message= []
+    try:
+        teho = int(ctx.message.content[6:])
+    except Exception as e:
+        await ctx.send("Anna teholukema numeroina")
+        await ctx.send(e)
+        return
+    message.append(f"**Tehokkaampia autoja kuin {teho} hv:**")
+    cur.execute("SELECT manufacturer, COUNT(*) as c FROM cache WHERE powerHp >= ? GROUP BY manufacturer ORDER BY c DESC LIMIT 5", (teho,))
+    manufacturers = cur.fetchall()
+    for row in manufacturers:
+        message.append(f"**{row[0]}**: {row[1]} kpl")
+
+    cur.execute("SELECT manufacturer, COUNT(*) FROM cache GROUP BY manufacturer")
+    car_counts_by_make = cur.fetchall()
+
+    cur.execute("SELECT manufacturer, COUNT(*) FROM cache WHERE powerHp > ? GROUP BY manufacturer", (teho,))
+    powerful_cars_by_make = {row[0]: row[1] for row in cur.fetchall()}
+
+    message.append("\n")
+    message.append(f"**Yli {teho} hv autojen osuus per merkki:**")
+    for make, count in car_counts_by_make:
+        powerful_count = powerful_cars_by_make.get(make, 0)
+        percentage = (powerful_count / count) * 100
+        message.append(f"**{make}**: {percentage:.2f}%")
+        
+    await ctx.send('\n'.join(message))
+    
 
 @bot.command()
 async def auto(ctx):
