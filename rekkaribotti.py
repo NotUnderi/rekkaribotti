@@ -170,11 +170,25 @@ async def mopo(ctx):
         await ctx.send("Anna teholukema numeroina")
         await ctx.send(e)
         return
+    
+    
+    cur.execute("SELECT COUNT(*) FROM cache")
+    total_cars = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(*) FROM cache WHERE powerHp > ?", (teho,))
+    powerful_cars = cur.fetchone()[0]
+    percentage = (powerful_cars / total_cars) * 100 if total_cars > 0 else 0
+    message.append(f"**Yli {teho} hv autojen osuus kaikista autoista:** {percentage:.2f}%")
+    
+    message.append("\n")
+
     message.append(f"**Tehokkaampia autoja kuin {teho} hv:**")
     cur.execute("SELECT manufacturer, COUNT(*) as c FROM cache WHERE powerHp >= ? GROUP BY manufacturer ORDER BY c DESC LIMIT 5", (teho,))
     manufacturers = cur.fetchall()
     for row in manufacturers:
         message.append(f"**{row[0]}**: {row[1]} kpl")
+
+
 
     cur.execute("SELECT manufacturer, COUNT(*) FROM cache GROUP BY manufacturer")
     car_counts_by_make = cur.fetchall()
@@ -188,8 +202,11 @@ async def mopo(ctx):
         powerful_count = powerful_cars_by_make.get(make, 0)
         percentage = (powerful_count / count) * 100
         message.append(f"**{make}**: {percentage:.2f}%")
-        
+    
     await ctx.send('\n'.join(message))
+
+    
+
     
 
 @bot.command()
