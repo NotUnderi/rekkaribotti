@@ -39,6 +39,7 @@ if TOKEN is None:
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
+bot.remove_command('help')
 
 pattern = re.compile(r'\b[a-zA-ZäöÄÖ]{1,3}-?\d{1,3}\b')
 strictPattern = re.compile(r'\b[a-zA-ZäöÄÖ]{3}-?\d{3}\b')
@@ -124,6 +125,45 @@ async def on_ready():
 @bot.command()
 async def ping(ctx):
     await ctx.send('Pong!')
+
+@bot.command()
+async def help(ctx):
+    message = []
+    message.append("**Komennot:**")
+    message.append("!r <abc123> - Hae auton tiedot")
+    message.append("!auto <abc123> - Aseta oma autosi")
+    message.append("!mopo 123 - Kuinka moni auto ylittää annetun tehon")
+    message.append("!autonteho 123 - Aseta oma autosi teho")
+    message.append("!stats - Hae tilastotietoja")
+    await ctx.send('\n'.join(message))
+
+
+@bot.command()
+async def hae(ctx):
+    message = []
+    cur.execute("SELECT rekkari FROM cache WHERE rekkari LIKE ?", ('%'+ctx.message.content[5:]+'%',))
+    rows = cur.fetchall()
+    if not rows:
+        message.append("Ei hakutuloksia rekkareista")
+        return
+    message.append("**Hakutulokset rekkareista:**")
+    for row in rows:
+        message.append(row[0])
+    #cur.execute("SELECT message,vinNumber FROM autot_messages WHERE message LIKE ? LIMIT 1", ('%'+ctx.message.content[5:]+'%',))
+    #rows = cur.fetchall()
+    #if not rows:
+    #    message.append("Ei hakutuloksia viesteistä")
+    #    await ctx.send('\n'.join(message))
+    #    return
+    #message.append("\n**Hakutulokset viesteistä:**")
+    #for row in rows:
+    #    cur.execute("SELECT rekkari FROM cache WHERE vinNumber = ?", (row[1],))
+    #    rekkari = cur.fetchone()
+    #    message.append(f"**{rekkari[0]}**")
+    #    message.append(row[0])
+
+    #In it's current form searching a license plate returns a ton of results from messages because every single !r abc123 or abc123 mention saves a message as "abc123"
+    await ctx.send('\n'.join(message))
 
 @bot.command()
 async def stats(ctx):
