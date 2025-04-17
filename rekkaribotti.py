@@ -145,6 +145,7 @@ async def hae(ctx):
     rows = cur.fetchall()
     if not rows:
         message.append("Ei hakutuloksia rekkareista")
+        await ctx.send('\n'.join(message))
         return
     message.append("**Hakutulokset rekkareista:**")
     for row in rows:
