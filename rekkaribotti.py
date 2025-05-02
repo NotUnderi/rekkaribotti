@@ -129,6 +129,10 @@ async def ping(ctx):
 @bot.command()
 async def help(ctx):
     message = []
+    if is_banned(ctx.author.id):  
+        record_check(ctx.author.id)
+        await ctx.send("Homonesto aktivoitu")
+        return     
     message.append("**Komennot:**")
     message.append("!r <abc123> - Hae auton tiedot")
     message.append("!auto <abc123> - Aseta oma autosi")
@@ -141,9 +145,10 @@ async def help(ctx):
 @bot.command()
 async def hae(ctx):
     message = []
-    if is_banned(id):  
-        record_check(id)
-        return "Homonesto aktivoitu"
+    if is_banned(ctx.author.id):  
+        record_check(ctx.author.id)
+        await ctx.send("Homonesto aktivoitu")
+        return 
     record_check(id)
     cur.execute("SELECT rekkari FROM cache WHERE rekkari LIKE ?", ('%'+ctx.message.content[5:]+'%',))
     rows = cur.fetchall()
@@ -227,10 +232,11 @@ async def mopo(ctx):
         await ctx.send("Anna järkevä teholukema")
         return
     
-    if is_banned(id):  
-        record_check(id)
-        return "Homonesto aktivoitu"
-    record_check(id)
+    if is_banned(ctx.author.id):  
+        record_check(ctx.author.id)
+        await ctx.send("Homonesto aktivoitu")
+        return 
+    record_check(ctx.author.id)
     
     cur.execute("SELECT COUNT(*) FROM cache")
     total_cars = cur.fetchone()[0]
@@ -271,7 +277,6 @@ async def mopo(ctx):
 
 @bot.command()
 async def auto(ctx):
-    print(ctx.author.id)
     rekkari = pattern.search(ctx.message.content)
     if id == 117967143731068932: rekkari = pattern.search("zgt800")
     if id == 291874573870432256: rekkari = pattern.search("vei475")
@@ -308,7 +313,11 @@ async def autonteho(ctx):
             
         if ctx.author.id in id_list:
             new_power = int(ctx.message.content[11:])
+            new_kw = new_power * 0.7457
+            cur.execute("SELECT rekkari FROM autot WHERE id = ?", (ctx.message.author.id,))
+            rekkari = cur.fetchone()
             cur.execute("UPDATE autot SET teho = ? WHERE id = ?", (new_power, ctx.message.author.id))
+            cur.execute("UPDATE cache SET powerHp = ?, powerKW = ? WHERE rekkari = ?", (new_power, new_kw,rekkari[0]))
             cars.commit()
             await ctx.send(f"Teho päivitetty: {new_power} hv")
             return
@@ -344,7 +353,7 @@ async def on_message(message):
     await bot.process_commands(message)
 
 def is_banned(id):
-    """Check if the user in the ban_list has exceeded 10 license plate requests in the last hour."""
+    #Check if the user in the ban_list has exceeded 10 license plate requests in the last 10 hours.
     if id not in ban_list:
         return False  # Only users in the ban_list are restricted
 
@@ -352,7 +361,7 @@ def is_banned(id):
     # Get the list of timestamps for the user
     timestamps = ban_check_timestamps[id]
 
-    # Remove timestamps older than 1 hour
+    # Remove timestamps older than 10 hours
     ban_check_timestamps[id] = [t for t in timestamps if (current_time - t).total_seconds() < 36000]
 
     # Check if the user has made 10 or more checks in the last hour
@@ -362,7 +371,7 @@ def is_banned(id):
     return False
 
 def record_check(id):
-    """Record a license plate check for users in the ban_list."""
+    #Checks if a user is in the ban_list and records the time they made a request to ban_check_timestamps
     if id in ban_list:
         current_time = datetime.datetime.now(eest)
         ban_check_timestamps[id].append(current_time)
