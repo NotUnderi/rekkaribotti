@@ -141,6 +141,10 @@ async def help(ctx):
 @bot.command()
 async def hae(ctx):
     message = []
+    if is_banned(id):  
+        record_check(id)
+        return "Homonesto aktivoitu"
+    record_check(id)
     cur.execute("SELECT rekkari FROM cache WHERE rekkari LIKE ?", ('%'+ctx.message.content[5:]+'%',))
     rows = cur.fetchall()
     if not rows:
@@ -170,6 +174,11 @@ async def hae(ctx):
 async def stats(ctx):
     message = []
     count=0
+
+    if is_banned(id):  
+        record_check(id)
+        return "Homonesto aktivoitu"
+    record_check(id)
 
     cur.execute("SELECT vinNumber,COUNT(*) FROM autot_messages GROUP BY vinNumber ORDER BY COUNT(*) DESC LIMIT 11")
     total_mentions = cur.fetchall()
@@ -207,11 +216,21 @@ async def mopo(ctx):
     message= []
     try:
         teho = int(ctx.message.content[6:])
-    except Exception as e:
+    except ValueError:
         await ctx.send("Anna teholukema numeroina")
+        return
+    except Exception as e:
+        await ctx.send("Jokin meni pieleen")
         await ctx.send(e)
         return
+    if teho < 10 or teho > 1000:
+        await ctx.send("Anna järkevä teholukema")
+        return
     
+    if is_banned(id):  
+        record_check(id)
+        return "Homonesto aktivoitu"
+    record_check(id)
     
     cur.execute("SELECT COUNT(*) FROM cache")
     total_cars = cur.fetchone()[0]
@@ -295,8 +314,10 @@ async def autonteho(ctx):
             return
         else:
             await ctx.send("Autoa ei löytynyt")
-    except Exception as e:
+    except ValueError as e:
         await ctx.send("Anna uusi teholukema numeroina")
+    except Exception as e:
+        await ctx.send("Jokin meni pieleen")
         await ctx.send(e)
 
 
