@@ -314,6 +314,8 @@ async def autonteho(ctx):
         if ctx.author.id in id_list:
             new_power = int(ctx.message.content[11:])
             new_kw = new_power * 0.7457
+            if new_power < 1:
+                raise ValueError("Teho ei voi olla alle 1 hv")
             cur.execute("SELECT rekkari FROM autot WHERE id = ?", (ctx.message.author.id,))
             rekkari = cur.fetchone()
             cur.execute("UPDATE autot SET teho = ? WHERE id = ?", (new_power, ctx.message.author.id))
