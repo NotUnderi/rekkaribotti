@@ -59,10 +59,6 @@ id_list = get_all_ids()
 
 def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:str|None=None) -> str | dict:
     message = []
-    if is_banned(id):  
-        record_check(id)
-        return "Homonesto aktivoitu"
-    record_check(id)
 
     if rekkari.group() in cached_rekkari_list:
         
@@ -122,16 +118,12 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
 async def on_ready():
     print(f'Logged in as {bot.user}')
 
-@bot.command()
-async def ping(ctx):
-    await ctx.send('Pong!')
 
 @bot.command()
 async def help(ctx):
     message = []
     if is_banned(ctx.author.id):  
         record_check(ctx.author.id)
-        await ctx.send("Homonesto aktivoitu")
         return     
     message.append("**Komennot:**")
     message.append("!r <abc123> - Hae auton tiedot")
@@ -147,7 +139,6 @@ async def hae(ctx):
     message = []
     if is_banned(ctx.author.id):  
         record_check(ctx.author.id)
-        await ctx.send("Homonesto aktivoitu")
         return 
     record_check(id)
     cur.execute("SELECT rekkari FROM cache WHERE rekkari LIKE ?", ('%'+ctx.message.content[5:]+'%',))
@@ -180,10 +171,10 @@ async def stats(ctx):
     message = []
     count=0
 
-    if is_banned(id):  
-        record_check(id)
-        return "Homonesto aktivoitu"
-    record_check(id)
+    if is_banned(ctx.author.id):  
+        record_check(ctx.author.id)
+        return
+    record_check(ctx.author.id)
 
     cur.execute("SELECT vinNumber,COUNT(*) FROM autot_messages GROUP BY vinNumber ORDER BY COUNT(*) DESC LIMIT 11")
     total_mentions = cur.fetchall()
@@ -219,6 +210,9 @@ async def stats(ctx):
 @bot.command()
 async def mopo(ctx):
     message= []
+    if is_banned(ctx.author.id):  
+        record_check(ctx.author.id)
+        return
     try:
         teho = int(ctx.message.content[6:])
     except ValueError:
@@ -234,7 +228,6 @@ async def mopo(ctx):
     
     if is_banned(ctx.author.id):  
         record_check(ctx.author.id)
-        await ctx.send("Homonesto aktivoitu")
         return 
     record_check(ctx.author.id)
     
@@ -278,8 +271,12 @@ async def mopo(ctx):
 @bot.command()
 async def auto(ctx):
     rekkari = pattern.search(ctx.message.content)
-    if id == 117967143731068932: rekkari = pattern.search("zgt800")
-    if id == 291874573870432256: rekkari = pattern.search("vei475")
+    if is_banned(ctx.author.id):
+        record_check(ctx.author.id)
+        return
+    record_check(ctx.author.id)
+    if ctx.author.id == 117967143731068932: rekkari = pattern.search("zgt800")
+    if ctx.author.id == 291874573870432256: rekkari = pattern.search("vei475")
     if rekkari:
         try:
             rekkari = pattern.search(normalize__rekkari(rekkari.group()))
@@ -305,6 +302,9 @@ async def auto(ctx):
 
 @bot.command()
 async def autonteho(ctx):
+    if is_banned(ctx.author.id):  
+        record_check(ctx.author.id)
+        return
     try:
         if ctx.author.id in ban_list:  
             await ctx.send("Kys :D autos on mopo")
@@ -332,6 +332,10 @@ async def autonteho(ctx):
 
 @bot.command()
 async def r(ctx):
+    if is_banned(ctx.author.id):
+        record_check(ctx.author.id)
+        return
+    record_check(ctx.author.id)
     rekkari = pattern.search(ctx.message.content)
     if rekkari:
         rekkari = pattern.search(normalize__rekkari(rekkari.group()))
@@ -344,11 +348,15 @@ async def on_message(message):
     strictPattern = re.compile(r'\b[a-zA-Z]{3}-?\d{3}\b')
     rekkari = strictPattern.search(message.content)
     if rekkari and not message.content.startswith('!'):
-            if False :          #manually set to true if old plates exist and run once
-                update_cached_rekkari()
-                update_owned_rekkari()
-            rekkari = strictPattern.search(normalize__rekkari(rekkari.group()))
-            await message.channel.send(get_licenseplate(rekkari, message.author.id, False, False, message.author.name + ": " + message.content[:50]))
+        if is_banned(message.author.id):
+            record_check(message.author.id)
+            return
+        record_check(message.author.id)
+        if False :          #manually set to true if old plates exist and run once
+            update_cached_rekkari()
+            update_owned_rekkari()
+        rekkari = strictPattern.search(normalize__rekkari(rekkari.group()))
+        await message.channel.send(get_licenseplate(rekkari, message.author.id, False, False, message.author.name + ": " + message.content[:50]))
 
     await bot.process_commands(message)
 
