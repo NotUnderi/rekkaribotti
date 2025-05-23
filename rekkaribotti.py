@@ -202,13 +202,47 @@ async def stats(ctx):
     most_powerful = cur.fetchall()
     for row in most_powerful:
         message.append(f"**{row[0]}** {row[1]} {row[2]} Teho: {row[3]} hv")
+    message.append("\n")
+
+    message.append("**Mopoimmat**")
+    cur.execute("SELECT rekkari, manufacturer, modelName, powerHp FROM cache ORDER BY powerHp ASC LIMIT 5")
+    least_powerful = cur.fetchall()
+    for row in least_powerful:
+        message.append(f"**{row[0]}** {row[1]} {row[2]} Teho: {row[3]} hv")
+    message.append("\n")
 
     cur.execute("SELECT manufacturer, COUNT(*) as c FROM cache GROUP BY manufacturer ORDER BY c DESC LIMIT 5")
     manufacturers = cur.fetchall()
-    message.append("\n")
     message.append("**Suosituimmat merkit:**")
     for row in manufacturers:
         message.append(f"**{row[0]}**: {row[1]} kpl")
+
+    message.append("\n")
+    message.append("**Suurimmat moottorit**")
+    cur.execute("SELECT rekkari, manufacturer, modelName, cylinderVolumeLiters FROM cache ORDER BY cylinderVolumeLiters DESC LIMIT 5")
+    most_liters = cur.fetchall()
+    for row in most_liters:
+        message.append(f"**{row[0]}** {row[1]} {row[2]} Litrat: {row[3]}l")
+    message.append("\n")
+
+    message.append("**Eniten sylinterejä**")
+    cur.execute("SELECT rekkari, manufacturer, modelName, cylinders FROM cache ORDER BY cylinders DESC LIMIT 5")
+    most_cylinders = cur.fetchall()
+    for row in most_cylinders:
+        message.append(f"**{row[0]}** {row[1]} {row[2]} Sylintereitä: {row[3]}")
+    message.append("\n")
+
+    
+    message.append("**Tehon keskiarvo**")
+    cur.execute("SELECT powerHp FROM cache")
+    powers = cur.fetchall()
+    p_l=[]
+    for row in powers: p_l.append(row[0])
+    print(p_l)
+    avg=sum(p_l) / len(p_l)
+    message.append(f"Kaikkien autojen tehojen keskiarvo on {avg}hv")
+    median=p_l[round((len(p_l)/2))]
+    message.append(f"Kaikkien autojen tehojen mediaani on {median}hv")
     
     await ctx.send('\n'.join(message))
 @bot.command()
