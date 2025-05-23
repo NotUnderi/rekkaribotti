@@ -8,8 +8,12 @@ import sqlite3
 import datetime
 from collections import defaultdict
 import pytz
+import yaml
 
 eest = pytz.timezone('Europe/Helsinki')
+
+with open("config.yaml", "r") as config_file:
+    config = yaml.safe_load(config_file)
 
 cars = sqlite3.connect('autot.db')
 cars.row_factory = sqlite3.Row
@@ -26,8 +30,8 @@ rows = cur.fetchall()
 for row in rows:
     print(row)
 
-our_cars = ["XUJ-502","NHS-459","THF-574","ZGT-800","VEI-475","GJJ-202"]
-ban_list = [291874573870432256,117967143731068932]
+our_cars = config['cars']["ignored_cars"]
+ban_list = config['ban']['banned_users']
 ban_check_timestamps = defaultdict(list)
 
 load_dotenv()
@@ -73,7 +77,7 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
         rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
         if rekkariRequest.status_code == 200:
             rekkariJson = rekkariRequest.json()
-            cur.execute("INSERT INTO cache (rekkari, vinNumber, manufacturer, modelName, description, registerDate, drive, fuel, cylinders, cylinderVolumeLiters, PowerHp, PowerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (rekkari.group(),rekkariJson["vinNumber"], rekkariJson["manufacturer"], rekkariJson["modelName"], rekkariJson["description"], rekkariJson["registerDate"], rekkariJson["drive"], rekkariJson["fuel"], rekkariJson["cylinders"], rekkariJson["cylinderVolumeLiters"], rekkariJson["powerHp"], rekkariJson["powerKW"]))
+            cur.execute("INSERT INTO cache (rekkari, vinNumber, manufacturer, modelName, description, registerDate, drive, fuel, cylinders, cylinderVolumeLiters, powerHp, powerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (rekkari.group(),rekkariJson["vinNumber"], rekkariJson["manufacturer"], rekkariJson["modelName"], rekkariJson["description"], rekkariJson["registerDate"], rekkariJson["drive"], rekkariJson["fuel"], rekkariJson["cylinders"], rekkariJson["cylinderVolumeLiters"], rekkariJson["powerHp"], rekkariJson["powerKW"]))
             cars.commit()
             cached_rekkari_list.append(rekkari.group())
         else:
@@ -278,8 +282,8 @@ async def mopo(ctx):
 @bot.command()
 async def auto(ctx):
     rekkari = pattern.search(ctx.message.content)
-    if id == 117967143731068932: rekkari = pattern.search("zgt800")
-    if id == 291874573870432256: rekkari = pattern.search("vei475")
+    if ctx.author.id == 117967143731068932: rekkari = pattern.search("zgt800")
+    if ctx.author.id == 291874573870432256: rekkari = pattern.search("vei475")
     if rekkari:
         try:
             rekkari = pattern.search(normalize__rekkari(rekkari.group()))
@@ -364,10 +368,10 @@ def is_banned(id):
     timestamps = ban_check_timestamps[id]
 
     # Remove timestamps older than 10 hours
-    ban_check_timestamps[id] = [t for t in timestamps if (current_time - t).total_seconds() < 36000]
+    ban_check_timestamps[id] = [t for t in timestamps if (current_time - t).total_seconds() < config['ban']['ban_time']]
 
     # Check if the user has made 10 or more checks in the last hour
-    if len(ban_check_timestamps[id]) >= 10:
+    if len(ban_check_timestamps[id]) >= config['ban']['ban_count']:
         return True
 
     return False

@@ -1,0 +1,15 @@
+ban:
+  ban_time:  3600
+  ban_count: 10
+  banned_users:
+    - 291874573870432256
+    - 117967143731068932
+    - 255412471614013441
+cars:
+  ignored_cars:
+    - "XUJ-502"
+    - "NHS-459"
+    - "THF-574"
+    - "ZGT-800"
+    - "VEI-475"
+    - "GJJ-202"
