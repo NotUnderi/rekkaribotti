@@ -244,7 +244,7 @@ async def stats(ctx):
 
     
     message.append("**Tehon keskiarvo**")
-    cur.execute("SELECT powerHp FROM cache")
+    cur.execute("SELECT powerHp FROM cache ORDER BY powerHp DESC")
     powers = cur.fetchall()
     p_l=[]
     for row in powers: p_l.append(row[0])
