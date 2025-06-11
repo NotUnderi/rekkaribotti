@@ -145,6 +145,15 @@ async def hae(ctx):
         record_check(ctx.author.id)
         return 
     record_check(id)
+    cur.execute("SELECT rekkari, modelName FROM cache WHERE modelName LIKE ?", ('%'+ctx.message.content[5:]+'%',))
+    rows = cur.fetchall()
+    if rows:
+        message.append("**Hakutulokset malleista:**")
+        message.append("Hakutuloksien määrä: " + str(len(rows)))
+        for row in rows:
+            message.append(row[1] + " " + row[0])
+    else:
+        message.append("Ei hakutuloksia malleista")
     cur.execute("SELECT rekkari FROM cache WHERE rekkari LIKE ?", ('%'+ctx.message.content[5:]+'%',))
     rows = cur.fetchall()
     if not rows:
@@ -154,6 +163,7 @@ async def hae(ctx):
     message.append("**Hakutulokset rekkareista:**")
     for row in rows:
         message.append(row[0])
+    
     #cur.execute("SELECT message,vinNumber FROM autot_messages WHERE message LIKE ? LIMIT 1", ('%'+ctx.message.content[5:]+'%',))
     #rows = cur.fetchall()
     #if not rows:
