@@ -227,8 +227,15 @@ async def stats(ctx):
     message.append("**Suosituimmat merkit:**")
     for row in manufacturers:
         message.append(f"**{row[0]}**: {row[1]} kpl")
-
     message.append("\n")
+
+    message.append("**Harvinaisimmat merkit:**")
+    cur.execute("SELECT manufacturer, COUNT(*) as c FROM cache GROUP BY manufacturer ORDER BY c ASC LIMIT 5")
+    rarest_manufacturers = cur.fetchall()
+    for row in rarest_manufacturers:
+        message.append(f"**{row[0]}**: {row[1]} kpl")
+    message.append("\n")
+
     message.append("**Suurimmat moottorit**")
     cur.execute("SELECT rekkari, manufacturer, modelName, cylinderVolumeLiters FROM cache ORDER BY cylinderVolumeLiters DESC LIMIT 5")
     most_liters = cur.fetchall()
