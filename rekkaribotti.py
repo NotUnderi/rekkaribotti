@@ -73,6 +73,7 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
         rekkariRequest = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{rekkari.group()}?market=3&language=FI")
         if rekkariRequest.status_code == 200:
             rekkariJson = rekkariRequest.json()
+            if rekkariJson["powerHp"] < 1: rekkariJson["powerHp"] = 1
             cur.execute("INSERT INTO cache (rekkari, vinNumber, manufacturer, modelName, description, registerDate, drive, fuel, cylinders, cylinderVolumeLiters, powerHp, powerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (rekkari.group(),rekkariJson["vinNumber"], rekkariJson["manufacturer"], rekkariJson["modelName"], rekkariJson["description"], rekkariJson["registerDate"], rekkariJson["drive"], rekkariJson["fuel"], rekkariJson["cylinders"], rekkariJson["cylinderVolumeLiters"], rekkariJson["powerHp"], rekkariJson["powerKW"]))
             cars.commit()
             cached_rekkari_list.append(rekkari.group())
@@ -215,7 +216,7 @@ async def stats(ctx):
     message.append("\n")
 
     message.append("**Mopoimmat**")
-    cur.execute("SELECT rekkari, manufacturer, modelName, powerHp FROM cache ORDER BY powerHp ASC LIMIT 5")
+    cur.execute("SELECT rekkari, manufacturer, modelName, powerHp FROM cache WHERE powerHp > 1 ORDER BY powerHp ASC LIMIT 5")
     least_powerful = cur.fetchall()
     for row in least_powerful:
         message.append(f"**{row[0]}** {row[1]} {row[2]} Teho: {row[3]} hv")
