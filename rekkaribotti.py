@@ -10,6 +10,8 @@ from collections import defaultdict
 import pytz
 import yaml
 
+DISCORD_MESSAGE_URL_PREFIX = "https://discord.com/channels/"
+
 eest = pytz.timezone('Europe/Helsinki')
 
 with open("config.yaml", "r") as config_file:
@@ -19,9 +21,28 @@ cars = sqlite3.connect('autot.db')
 cars.row_factory = sqlite3.Row
 cur = cars.cursor()
 
+def add_db_column(table_name: str, column_name: str, column_type: str):
+    """
+    Adds a column to the database if it does not already exist.
+    :param table_name: Table to add column to.
+    :param column_name: Column to add.
+    :param column_type: New column type.
+    :return: True if column was added. Otherwise, False.
+    """
+    cur.execute(f"PRAGMA table_info({table_name})")
+    columns = [col[1] for col in cur.fetchall()]
+
+    if column_name not in columns:
+        cur.execute(f"ALTER TABLE autot_messages ADD COLUMN {column_name} {column_type}")
+        return True
+    return False
+
 cur.execute("CREATE TABLE IF NOT EXISTS autot (id INTEGER PRIMARY KEY, auto TEXT, teho INTEGER, rekkari TEXT)")
 cur.execute("CREATE TABLE IF NOT EXISTS autot_messages (id INTEGER PRIMARY KEY, message TEXT, vinNumber TEXT, time TEXT)")
 cur.execute("CREATE TABLE IF NOT EXISTS cache (rekkari TEXT, vinNumber PRIMARY KEY, manufacturer TEXT, modelName TEXT, description TEXT, registerDate TEXT, drive TEXT, fuel TEXT, cylinders INTEGER, cylinderVolumeLiters INTEGER, powerHp INTEGER, powerKW INTEGER)")
+add_db_column("autot_messages", "discord_message_id", "TEXT")
+add_db_column("autot_messages", "discord_channel_id", "TEXT")
+add_db_column("autot_messages", "discord_guild_id", "TEXT")
 cars.commit()
 
 cur.execute("SELECT * FROM cache")
@@ -61,8 +82,18 @@ def get_all_ids():
     return [id[0] for id in ids]
 id_list = get_all_ids()
 
-def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:str|None=None) -> str | dict:
+def get_licenseplate(rekkari:str, discord_message: discord.Message, large:bool, info:bool) -> str | dict:
+    """
+    Gets licence plate info from biltema and returns either data as dict or response for bot.
+    :param rekkari: Licence plate number.
+    :param discord_message: Discord message object.
+    :param large: Should the response include extra data (search log etc.)
+    :param info: Should the response be just JSON from Biltema
+    :return: If info = True then JSON from biltema otherwise message that can be sent as response.
+    """
     message = []
+    id = discord_message.author.id
+    full_message = discord_message.author.name + ": " + discord_message.content[:50]
 
     if rekkari.group() in cached_rekkari_list:
         
@@ -81,10 +112,10 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
             message.append("Rekkaria ei löytynyt")
             message.append("Palvelin antoi vastauksen: " + str(rekkariRequest.status_code))
             return('\n'.join(message))
-    cur.execute("SELECT time, message FROM autot_messages WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (rekkariJson["vinNumber"],))
+    cur.execute("SELECT time, message, discord_message_id, discord_channel_id, discord_guild_id FROM autot_messages WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (rekkariJson["vinNumber"],))
     autot_messages = [dict(x) for x in cur.fetchall()]
     rekkariJson["autot_messages"] = autot_messages
-    cur.execute("SELECT COUNT(*) FROM autot_messages WHERE vinNumber = ?", (rekkariJson["vinNumber"],))
+    cur.execute("SELECT COUNT(*) FROM autot_messages WHERE vinNumber = ?", (rekkariJson["vinNumber"],)) # We fetch total mention count separately since cannot do len() on above query due to "LIMIT 5"
     rekkariJson['total_mentions'] = cur.fetchone()['COUNT(*)']
     if info : return rekkariJson
 
@@ -103,7 +134,10 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
             for autot_message in rekkariJson["autot_messages"]:
                 last_seen = datetime.datetime.fromisoformat(autot_message['time'])
                 human_readable_time = last_seen.strftime("%d.%m.%Y %H:%M:%S")
-                message.append(f"**{human_readable_time}**: {autot_message['message']}")
+                if autot_message["discord_message_id"]:
+                    message.append(f"[**{human_readable_time}**: {autot_message['message']}]({DISCORD_MESSAGE_URL_PREFIX}{autot_message['discord_guild_id']}/{autot_message['discord_channel_id']}/{autot_message['discord_message_id']})")
+                else:
+                    message.append(f"**{human_readable_time}**: {autot_message['message']}")
     message.append(f"Hakukertoja yhteensä:**{rekkariJson['total_mentions']}**")
 
     if id in id_list:
@@ -113,7 +147,8 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
         diff = (author_power / rekkari_power)
         message.append(f"Tehoero: **{diff:.2f}x**\nAutosi teho: {author_power} hv")
     if full_message is not None:
-            cur.execute("INSERT INTO autot_messages (message, vinNumber, time) VALUES (?, ?, ?)",(full_message, rekkariJson["vinNumber"], datetime.datetime.now(eest)))
+            cur.execute("INSERT INTO autot_messages (message, vinNumber, time, discord_message_id, discord_channel_id, discord_guild_id) VALUES (?, ?, ?, ?, ?, ?)",
+                        (full_message, rekkariJson["vinNumber"], datetime.datetime.now(eest), str(discord_message.id), str(discord_message.channel.id), str(discord_message.guild.id)))
             cars.commit()
     return('\n'.join(message))
     
@@ -336,7 +371,7 @@ async def auto(ctx):
     if rekkari:
         try:
             rekkari = pattern.search(normalize__rekkari(rekkari.group()))
-            rekkariJson = get_licenseplate(rekkari, ctx.author.id, False, True, "[Asetettu omaksi autoksi]")
+            rekkariJson = get_licenseplate(rekkari, ctx.message, False, True)
             cur.execute("SELECT * FROM autot WHERE id = ?", (ctx.author.id,))
             print(ctx.author.id)
             if cur.fetchone():
@@ -397,10 +432,10 @@ async def r(ctx):
     rekkari = pattern.search(ctx.message.content)
     if rekkari:
         rekkari = pattern.search(normalize__rekkari(rekkari.group()))
-        await ctx.send(get_licenseplate(rekkari,ctx.author.id, True, False,ctx.message.author.name + " haki tiedot"))
+        await ctx.send(get_licenseplate(rekkari, ctx.message, True, False))
 
 @bot.event
-async def on_message(message):
+async def on_message(message: discord.Message):
     if message.author == bot.user:
         return
     strictPattern = re.compile(r'\b[a-zA-Z]{3}-?\d{3}\b')
@@ -414,7 +449,7 @@ async def on_message(message):
             update_cached_rekkari()
             update_owned_rekkari()
         rekkari = strictPattern.search(normalize__rekkari(rekkari.group()))
-        await message.channel.send(get_licenseplate(rekkari, message.author.id, False, False, message.author.name + ": " + message.content[:50]))
+        await message.channel.send(get_licenseplate(rekkari, message, False, False))
 
     await bot.process_commands(message)
 
