@@ -95,6 +95,8 @@ def get_licenseplate(rekkari:str, id:int, large:bool, info:bool, full_message:st
         first_seen_time = datetime.datetime.fromisoformat(first_seen['time'])
         if (first_seen_time<biltema_db_change):
             message.append(rekkariJson["manufacturer"] + " " + rekkariJson["modelName"] + " " + rekkariJson["description"])
+        else:
+            message.append(rekkariJson["description"])
     else:
         message.append(rekkariJson["description"])
     message.append(f"Teho : **{rekkariJson['powerHp']} hv**")
