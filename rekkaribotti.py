@@ -118,7 +118,8 @@ def get_licenseplate(rekkari:str, discord_message: discord.Message, large:bool, 
     cur.execute("SELECT time, message, discord_message_id, discord_channel_id, discord_guild_id FROM autot_messages WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (rekkariJson["vinNumber"],))    
     autot_messages = [dict(x) for x in cur.fetchall()]
     rekkariJson["autot_messages"] = autot_messages
-    cur.execute("SELECT COUNT(*) FROM autot_messages WHERE vinNumber = ?", (rekkariJson["vinNumber"],)) # We fetch total mention count separately since cannot do len() on above query due to "LIMIT 5"    rekkariJson['total_mentions'] = cur.fetchone()['COUNT(*)']
+    cur.execute("SELECT COUNT(*) FROM autot_messages WHERE vinNumber = ?", (rekkariJson["vinNumber"],)) # We fetch total mention count separately since cannot do len() on above query due to "LIMIT 5"    
+    rekkariJson['total_mentions'] = cur.fetchone()['COUNT(*)']
     if info : return rekkariJson
     cur.execute("SELECT time, message FROM autot_messages WHERE vinNumber = ? ORDER BY time ASC LIMIT 1",(rekkariJson["vinNumber"],))
     first_seen = cur.fetchone()
