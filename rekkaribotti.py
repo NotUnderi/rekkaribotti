@@ -24,7 +24,6 @@ db_new = sqlite3.connect('autot_new.db')
 db_new.row_factory = sqlite3.Row
 cur_new = db_new.cursor()
 
-
 #new normalized database
 cur_new.execute("CREATE TABLE IF NOT EXISTS manufacturer (name TEXT PRIMARY KEY)")
 cur_new.execute("CREATE TABLE IF NOT EXISTS model (modelName TEXT PRIMARY KEY, description TEXT)")
@@ -34,7 +33,6 @@ CREATE TABLE IF NOT EXISTS vehicle (
     licensePlate TEXT,
     manufacturer TEXT,
     modelName TEXT,
-    description TEXT,
     fuel TEXT,
     drive TEXT,
     registerDate TEXT,
@@ -92,7 +90,15 @@ def get_licenseplate(licenseplate:str) -> str | dict:
     :param licenseplate: Licence plate number.
     :return: License plate information as a string or dictionary.
     """
-    cur_new.execute("SELECT * FROM vehicle WHERE licensePlate = ?", (licenseplate.group(),))
+    cur_new.execute(
+        """
+        SELECT vehicle.*, model.description
+        FROM vehicle
+        LEFT JOIN model ON model.modelName = vehicle.modelName
+        WHERE vehicle.licensePlate = ?
+        """,
+        (licenseplate.group(),),
+    )
     existing_vehicle = cur_new.fetchone()
     if existing_vehicle is not None:
         dataJson = dict(existing_vehicle)
@@ -110,13 +116,12 @@ def get_licenseplate(licenseplate:str) -> str | dict:
             cur_new.execute("INSERT OR IGNORE INTO drive_type (name) VALUES(?)", (dataJson["drive"],))
             cur_new.execute("INSERT OR IGNORE INTO fuel_type (name) VALUES(?)", (dataJson["fuel"],))
             cur_new.execute(
-                "INSERT INTO vehicle (vinNumber, licensePlate, manufacturer, modelName, description, fuel, drive, registerDate, cylinders, cylinderVolumeLiters, powerHp, powerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO vehicle (vinNumber, licensePlate, manufacturer, modelName, fuel, drive, registerDate, cylinders, cylinderVolumeLiters, powerHp, powerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     dataJson["vinNumber"],
                     licenseplate.group(),
                     dataJson["manufacturer"],
                     dataJson["modelName"],
-                    dataJson["description"],
                     dataJson["fuel"],
                     dataJson["drive"],
                     dataJson["registerDate"],

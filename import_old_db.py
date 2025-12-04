@@ -20,7 +20,6 @@ def ensure_new_schema(conn: sqlite3.Connection) -> None:
             licensePlate TEXT,
             manufacturer TEXT,
             modelName TEXT,
-            description TEXT,
             fuel TEXT,
             drive TEXT,
             registerDate TEXT,
@@ -87,16 +86,15 @@ def migrate_cache(old_cur: sqlite3.Cursor, new_conn: sqlite3.Connection) -> int:
         new_cur.execute(
             """
             INSERT OR REPLACE INTO vehicle (
-                vinNumber, licensePlate, manufacturer, modelName, description, fuel, drive,
+                vinNumber, licensePlate, manufacturer, modelName, fuel, drive,
                 registerDate, cylinders, cylinderVolumeLiters, powerHp, powerKW
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 row["vinNumber"],
                 row["rekkari"],
                 manufacturer,
                 model_name,
-                row["description"],
                 fuel,
                 drive,
                 row["registerDate"],
