@@ -26,20 +26,40 @@ cur_new = db_new.cursor()
 
 
 #new normalized database
-cur_new.execute("CREATE TABLE IF NOT EXISTS manufacturer (name PRIMARY KEY TEXT)")
-cur_new.execute("CREATE TABLE IF NOT EXISTS model (modelName PRIMARY KEY TEXT, description TEXT)")
-cur_new.execute("CREATE TABLE IF NOT EXISTS vehicle (vinNumber PRIMARY KEY, licensePlate TEXT, FOREIGN KEY(manufacturer) REFERENCES manufacturer(name), FOREIGN KEY(modelName) REFERENCES model(modelName), FOREIGN KEY (fuel) REFERENCES fuel_type(name),FOREIGN KEY(drive) REFERENCES drive_type(name), registerDate TEXT, cylinders INTEGER, cylinderVolumeLiters INTEGER, powerHp INTEGER, powerKW INTEGER)")
-cur_new.execute("CREATE TABLE IF NOT EXISTS drive_type (name PRIMARY KEY TEXT)")
-cur_new.execute("CREATE TABLE IF NOT EXISTS fuel_type (name PRIMARY KEY TEXT)")
+cur_new.execute("CREATE TABLE IF NOT EXISTS manufacturer (name TEXT PRIMARY KEY)")
+cur_new.execute("CREATE TABLE IF NOT EXISTS model (modelName TEXT PRIMARY KEY, description TEXT)")
+cur_new.execute("""
+CREATE TABLE IF NOT EXISTS vehicle (
+    vinNumber TEXT PRIMARY KEY,
+    licensePlate TEXT,
+    manufacturer TEXT,
+    modelName TEXT,
+    description TEXT,
+    fuel TEXT,
+    drive TEXT,
+    registerDate TEXT,
+    cylinders INTEGER,
+    cylinderVolumeLiters INTEGER,
+    powerHp INTEGER,
+    powerKW INTEGER,
+    FOREIGN KEY(manufacturer) REFERENCES manufacturer(name),
+    FOREIGN KEY(modelName) REFERENCES model(modelName),
+    FOREIGN KEY(fuel) REFERENCES fuel_type(name),
+    FOREIGN KEY(drive) REFERENCES drive_type(name)
+)
+""")
+cur_new.execute("CREATE TABLE IF NOT EXISTS drive_type (name TEXT PRIMARY KEY)")
+cur_new.execute("CREATE TABLE IF NOT EXISTS fuel_type (name TEXT PRIMARY KEY)")
 cur_new.execute("""
 CREATE TABLE IF NOT EXISTS message (
     id INTEGER PRIMARY KEY,
     message TEXT,
-    FOREIGN KEY(vinNumber) REFERENCES vehicle(vinNumber),
+    vinNumber TEXT,
     time TEXT,
     discord_message_id TEXT,
     discord_channel_id TEXT,
-    discord_guild_id TEXT
+    discord_guild_id TEXT,
+    FOREIGN KEY(vinNumber) REFERENCES vehicle(vinNumber)
 )
 """)
 
@@ -73,8 +93,9 @@ def get_licenseplate(licenseplate:str) -> str | dict:
     :return: License plate information as a string or dictionary.
     """
     cur_new.execute("SELECT * FROM vehicle WHERE licensePlate = ?", (licenseplate.group(),))
-    if cur_new.row_factory is not None:
-        dataJson = dict(cur_new.fetchone())
+    existing_vehicle = cur_new.fetchone()
+    if existing_vehicle is not None:
+        dataJson = dict(existing_vehicle)
     else:
         try:
             request = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{licenseplate.group()}?market=3&language=FI")
@@ -88,7 +109,23 @@ def get_licenseplate(licenseplate:str) -> str | dict:
             cur_new.execute("INSERT OR IGNORE INTO model (modelName, description) VALUES(?, ?)", (dataJson["modelName"], dataJson["description"]))
             cur_new.execute("INSERT OR IGNORE INTO drive_type (name) VALUES(?)", (dataJson["drive"],))
             cur_new.execute("INSERT OR IGNORE INTO fuel_type (name) VALUES(?)", (dataJson["fuel"],))
-            cur_new.execute("INSERT INTO vehicle (vin, licensePlate, manufacturer, modelName, fuel, drive, registerDate, cylinders, cylinderVolumeLiters, powerHp, powerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (dataJson["vinNumber"], license_plate.group(), dataJson["manufacturer"], dataJson["modelName"], dataJson["fuel"], dataJson["drive"], dataJson["registerDate"], dataJson["cylinders"], dataJson["cylinderVolumeLiters"], dataJson["powerHp"], dataJson["powerKW"]))
+            cur_new.execute(
+                "INSERT INTO vehicle (vinNumber, licensePlate, manufacturer, modelName, description, fuel, drive, registerDate, cylinders, cylinderVolumeLiters, powerHp, powerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    dataJson["vinNumber"],
+                    licenseplate.group(),
+                    dataJson["manufacturer"],
+                    dataJson["modelName"],
+                    dataJson["description"],
+                    dataJson["fuel"],
+                    dataJson["drive"],
+                    dataJson["registerDate"],
+                    dataJson["cylinders"],
+                    dataJson["cylinderVolumeLiters"],
+                    dataJson["powerHp"],
+                    dataJson["powerKW"],
+                ),
+            )
             db_new.commit()
         else:
             return None
@@ -109,7 +146,7 @@ def generate_message(licenseplate:str, discord_message: discord.Message, large:b
     full_message = discord_message.author.name + ": " + discord_message.content[:50]
     dataJson = get_licenseplate(licenseplate)
     if dataJson is None:
-        return "Rekisteriä ei löydetty"
+        return "Rekkaria ei löydetty"
     
     cur_new.execute("SELECT time, message, discord_message_id, discord_channel_id, discord_guild_id FROM message WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (dataJson["vinNumber"],))    
     messages = cur_new.fetchall()
@@ -166,9 +203,7 @@ async def help(ctx):
     message = []
     message.append("**Komennot:**")
     message.append("!r <abc123> - Hae auton tiedot")
-    message.append("!auto <abc123> - Aseta oma autosi")
     message.append("!mopo 123 - Kuinka moni auto ylittää annetun tehon")
-    message.append("!autonteho 123 - Aseta oma autosi teho")
     message.append("!stats - Hae tilastotietoja")
     await ctx.send('\n'.join(message))
 
@@ -296,9 +331,9 @@ async def mopo(ctx):
 
     
     cur_new.execute("SELECT COUNT(*) FROM vehicle")
-    total_cars = cur.fetchone()[0]
+    total_cars = cur_new.fetchone()[0]
 
-    cur_new.execute("SELECT COUNT(*) FROM message WHERE powerHp > ?", (teho,))
+    cur_new.execute("SELECT COUNT(*) FROM vehicle WHERE powerHp > ?", (teho,))
     powerful_cars = cur_new.fetchone()[0]
     percentage = (powerful_cars / total_cars) * 100 if total_cars > 0 else 0
     message.append(f"**Yli {teho} hv autojen osuus kaikista autoista:** {percentage:.2f}%")
@@ -340,7 +375,6 @@ async def r(ctx):
 async def on_message(message:discord.Message):
     if message.author == bot.user:
         return
-    strictPattern = re.compile(r'\b[a-zA-Z]{3}-?\d{3}\b')
     licenseplate = strictPattern.search(message.content)
     if licenseplate and not message.content.startswith('!'):
         licenseplate = strictPattern.search(normalize__licenseplate(licenseplate.group()))
@@ -353,7 +387,7 @@ def normalize__licenseplate(licenseplate:str) -> str:
     licenseplate = licenseplate.upper()
     if re.compile(r'\b-\b').search(licenseplate) != None:
         return licenseplate
-    licenseplate = re.sub(r'([A-Za-z]+)(\d+)', r'\1-\2', licenseplate)
+    licenseplate = re.sub(r'([A-Za-zäöÄÖ]+)(\d+)', r'\1-\2', licenseplate)
     return licenseplate
 
 bot.run(TOKEN)
