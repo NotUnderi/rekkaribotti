@@ -240,6 +240,8 @@ async def hae(ctx):
         message.append(row[0])
 
     message = '\n'.join(message)
+    print(message)
+    print(len(message))
     if len(message) >= 2000:
         lines = message.splitlines()
         await ctx.send('\n'.join(lines[:len(lines)//2]))
@@ -252,7 +254,7 @@ async def stats(ctx):
     count=0
 
 
-    cur_new.execute("SELECT vinNumber,COUNT(*) FROM message GROUP BY vinNumber ORDER BY COUNT(*) DESC LIMIT 11")
+    cur_new.execute("SELECT COUNT(*) as cFROM vehicle GROUP BY c ORDER BY c DESC LIMIT 11")
     total_mentions = cur_new.fetchall()
 
     message.append("**Autoja yhteensä:** " + str(len(total_mentions)))
@@ -386,6 +388,8 @@ async def mopo(ctx):
         percentage = (powerful_count / count) * 100
         message.append(f"**{make}**: {percentage:.2f}%")
     message = '\n'.join(message)
+    print(message)
+    print(len(message))
     if len(message) >= 2000:
         lines = message.splitlines()
         await ctx.send('\n'.join(lines[:len(lines)//2]))
