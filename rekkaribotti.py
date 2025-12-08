@@ -239,14 +239,11 @@ async def hae(ctx):
     for row in rows:
         message.append(row[0])
 
-    message = '\n'.join(message)
-    print(message)
-    print(len(message))
-    if len(message) >= 2000:
-        lines = message.splitlines()
-        await ctx.send('\n'.join(lines[:len(lines)//2]))
-        await ctx.send('\n'.join(lines[len(lines)//2:]))
-    await ctx.send(message)
+    message_chunks = split_message_by_newlines('\n'.join(message))
+    print(message_chunks)
+    print(len(message_chunks))
+    for chunk in message_chunks:
+        await ctx.send(chunk)
         
 @bot.command()
 async def stats(ctx):
@@ -254,10 +251,12 @@ async def stats(ctx):
     count=0
 
 
-    cur_new.execute("SELECT COUNT(*) as cFROM vehicle GROUP BY c ORDER BY c DESC LIMIT 11")
+    cur_new.execute("SELECT COUNT(*) as c FROM vehicle ORDER BY c DESC LIMIT 11")
+    total_views = cur_new.fetchall()
+    cur_new.execute("SELECT vinNumber, COUNT(*) FROM message GROUP BY vinNumber ORDER BY COUNT(*) DESC")
     total_mentions = cur_new.fetchall()
 
-    message.append("**Autoja yhteensä:** " + str(len(total_mentions)))
+    message.append("**Autoja yhteensä:** " + str(len(total_views)))
     message.append("\n")
     message.append("**Katsotuimmat:**") 
     for row in total_mentions:
@@ -341,7 +340,7 @@ async def stats(ctx):
 
 @bot.command()
 async def mopo(ctx):
-    message= []
+    message = []
 
     try:
         teho = int(ctx.message.content[6:])
@@ -352,11 +351,12 @@ async def mopo(ctx):
         await ctx.send("Jokin meni pieleen")
         await ctx.send(e)
         return
+
     if teho < 10 or teho > 1000:
         await ctx.send("Anna järkevä teholukema")
         return
 
-    
+    # Fetch total cars and powerful cars
     cur_new.execute("SELECT COUNT(*) FROM vehicle")
     total_cars = cur_new.fetchone()[0]
 
@@ -364,17 +364,16 @@ async def mopo(ctx):
     powerful_cars = cur_new.fetchone()[0]
     percentage = (powerful_cars / total_cars) * 100 if total_cars > 0 else 0
     message.append(f"**Yli {teho} hv autojen osuus kaikista autoista:** {percentage:.2f}%")
-    
     message.append("\n")
 
+    # Fetch powerful cars by manufacturer
     message.append(f"**Tehokkaampia autoja kuin {teho} hv:**")
     cur_new.execute("SELECT manufacturer, COUNT(*) as c FROM vehicle WHERE powerHp >= ? GROUP BY manufacturer ORDER BY c DESC LIMIT 5", (teho,))
     manufacturers = cur_new.fetchall()
     for row in manufacturers:
         message.append(f"**{row[0]}**: {row[1]} kpl")
 
-
-
+    # Fetch powerful cars percentage by manufacturer
     cur_new.execute("SELECT manufacturer, COUNT(*) FROM vehicle GROUP BY manufacturer")
     car_counts_by_make = cur_new.fetchall()
 
@@ -387,15 +386,11 @@ async def mopo(ctx):
         powerful_count = powerful_cars_by_make.get(make, 0)
         percentage = (powerful_count / count) * 100
         message.append(f"**{make}**: {percentage:.2f}%")
-    message = '\n'.join(message)
-    print(message)
-    print(len(message))
-    if len(message) >= 2000:
-        lines = message.splitlines()
-        await ctx.send('\n'.join(lines[:len(lines)//2]))
-        await ctx.send('\n'.join(lines[len(lines)//2:]))
-    await ctx.send(message)
 
+    # Split and send the message in chunks
+    message_chunks = split_message_by_newlines('\n'.join(message))
+    for chunk in message_chunks:
+        await ctx.send(chunk)
 
 @bot.command()
 async def r(ctx):
@@ -422,5 +417,28 @@ def normalize__licenseplate(licenseplate:str) -> str:
         return licenseplate
     licenseplate = re.sub(r'([A-Za-zäöÄÖ]+)(\d+)', r'\1-\2', licenseplate)
     return licenseplate
+def split_message_by_newlines(text, max_len=1900):
+    lines = text.split("\n")
+    chunks = []
+    current = []
+
+    current_len = 0
+
+    for line in lines:
+        line_len = len(line) + 1 
+
+        if current_len + line_len > max_len:
+            chunks.append("\n".join(current))
+            current = [line]
+            current_len = line_len
+        else:
+            current.append(line)
+            current_len += line_len
+
+    # Append last chunk
+    if current:
+        chunks.append("\n".join(current))
+
+    return chunks
 
 bot.run(TOKEN)
