@@ -9,7 +9,7 @@ import datetime
 from collections import defaultdict
 import pytz
 import yaml
-from http.client import responses
+from http import HTTPStatus
 
 eest = pytz.timezone('Europe/Helsinki')
 DISCORD_MESSAGE_URL_PREFIX = "https://discord.com/channels/"
@@ -154,7 +154,7 @@ def generate_message(licenseplate:str, discord_message: discord.Message, large:b
     if dataJson is None:
         return "Rekkaria ei löydetty"
     if type(dataJson) == int:
-        return f"HTTP: {dataJson}\n{responses(dataJson)}"
+        return f"HTTP: {dataJson}\n{HTTPStatus(dataJson).phrase}"
     
     cur_new.execute("SELECT time, message, discord_message_id, discord_channel_id, discord_guild_id FROM message WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (dataJson["vinNumber"],))    
     messages = cur_new.fetchall()
