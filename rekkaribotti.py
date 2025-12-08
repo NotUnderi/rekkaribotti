@@ -84,7 +84,7 @@ strictPattern = re.compile(r'\b[a-zA-ZäöÄÖ]{3}-?\d{3}\b')
 
 
 
-def get_licenseplate(licenseplate:str) -> str | dict:
+def get_licenseplate(licenseplate:str) -> int | dict:
     """
     Fetches license plate information from the database or Biltema API.
     :param licenseplate: Licence plate number.
@@ -133,7 +133,7 @@ def get_licenseplate(licenseplate:str) -> str | dict:
             )
             db_new.commit()
         else:
-            return None
+            return request.status_code
     return dataJson
 
 
@@ -152,6 +152,8 @@ def generate_message(licenseplate:str, discord_message: discord.Message, large:b
     dataJson = get_licenseplate(licenseplate)
     if dataJson is None:
         return "Rekkaria ei löydetty"
+    if type(dataJson) == int:
+        return f"HTTP: {dataJson}"
     
     cur_new.execute("SELECT time, message, discord_message_id, discord_channel_id, discord_guild_id FROM message WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (dataJson["vinNumber"],))    
     messages = cur_new.fetchall()
