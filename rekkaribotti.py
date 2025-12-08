@@ -236,8 +236,13 @@ async def hae(ctx):
     for row in rows:
         message.append(row[0])
 
-    await ctx.send('\n'.join(message))
-
+    message = '\n'.join(message)
+    if len(message) >= 2000:
+        lines = message.splitlines()
+        await ctx.send('\n'.join(lines[:len(lines)//2]))
+        await ctx.send('\n'.join(lines[len(lines)//2:]))
+    await ctx.send(message)
+        
 @bot.command()
 async def stats(ctx):
     message = []
@@ -282,6 +287,13 @@ async def stats(ctx):
         message.append(f"**{row[0]}**: {row[1]} kpl")
     message.append("\n")
 
+    cur_new.execute("SELECT modelName, COUNT(*) as c FROM vehicle GROUP BY modelName ORDER BY c DESC LIMIT 5")
+    popular_models = cur_new.fetchall()
+    message.append("**Suosituimmat mallit:**")
+    for row in popular_models:
+        message.append(f"**{row[0]}**: {row[1]} kpl")
+    message.append("\n")
+
     message.append("**Harvinaisimmat merkit:**")
     cur_new.execute("SELECT manufacturer, COUNT(*) as c FROM vehicle GROUP BY manufacturer ORDER BY c ASC LIMIT 5")
     rarest_manufacturers = cur_new.fetchall()
@@ -315,7 +327,12 @@ async def stats(ctx):
     median=p_l[round((len(p_l)/2))]
     message.append(f"Kaikkien autojen tehojen mediaani on {median}hv")
     
-    await ctx.send('\n'.join(message))
+    message = '\n'.join(message)
+    if len(message) >= 2000:
+        lines = message.splitlines()
+        await ctx.send('\n'.join(lines[:len(lines)//2]))
+        await ctx.send('\n'.join(lines[len(lines)//2:]))
+    await ctx.send(message)
 
 @bot.command()
 async def mopo(ctx):
@@ -365,8 +382,12 @@ async def mopo(ctx):
         powerful_count = powerful_cars_by_make.get(make, 0)
         percentage = (powerful_count / count) * 100
         message.append(f"**{make}**: {percentage:.2f}%")
-    
-    await ctx.send('\n'.join(message))
+    message = '\n'.join(message)
+    if len(message) >= 2000:
+        lines = message.splitlines()
+        await ctx.send('\n'.join(lines[:len(lines)//2]))
+        await ctx.send('\n'.join(lines[len(lines)//2:]))
+    await ctx.send(message)
 
 
 @bot.command()
