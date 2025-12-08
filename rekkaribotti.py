@@ -10,12 +10,22 @@ from collections import defaultdict
 import pytz
 import yaml
 from http import HTTPStatus
+from ismo_sound import get_sound
 
 eest = pytz.timezone('Europe/Helsinki')
 DISCORD_MESSAGE_URL_PREFIX = "https://discord.com/channels/"
 biltema_db_change = datetime.datetime.fromisoformat("2025-09-08 09:00:00.000000+03:00")
 today = datetime.date.today()
 
+
+headers = requests.utils.default_headers()
+headers.update({
+#    "Origin": "https://heiniset.fi",
+#    "Referer": "https://heiniset.fi/"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:145.0) Gecko/20100101 Firefox/145.0",
+    "content-type": "application/json",
+    "Origin": "https://ismonator.pikseli.org"
+})
 with open("config.yaml", "r") as config_file:
     config = yaml.safe_load(config_file)
 
@@ -85,11 +95,12 @@ strictPattern = re.compile(r'\b[a-zA-ZäöÄÖ]{3}-?\d{3}\b')
 
 
 
-def get_licenseplate(licenseplate:str) -> int | dict:
+def get_licenseplate(licenseplate:str) -> str | dict:
     """
     Fetches license plate information from the database or Biltema API.
     :param licenseplate: Licence plate number.
     :return: License plate information as a string or dictionary.
+    :raises: requests.exceptions.RequestException if the API request fails.
     """
     cur_new.execute(
         """
@@ -106,35 +117,35 @@ def get_licenseplate(licenseplate:str) -> int | dict:
     else:
         try:
             request = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{licenseplate.group()}?market=3&language=FI")
+            if request.status_code == 200:
+                dataJson = request.json()
+                if dataJson["powerHp"] < 1: dataJson["powerHp"] = 1
+                cur_new.execute("INSERT OR IGNORE INTO manufacturer (name) VALUES(?)", (dataJson["manufacturer"],))
+                cur_new.execute("INSERT OR IGNORE INTO model (modelName, description) VALUES(?, ?)", (dataJson["modelName"], dataJson["description"]))
+                cur_new.execute("INSERT OR IGNORE INTO drive_type (name) VALUES(?)", (dataJson["drive"],))
+                cur_new.execute("INSERT OR IGNORE INTO fuel_type (name) VALUES(?)", (dataJson["fuel"],))
+                cur_new.execute(
+                    "INSERT INTO vehicle (vinNumber, licensePlate, manufacturer, modelName, fuel, drive, registerDate, cylinders, cylinderVolumeLiters, powerHp, powerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        dataJson["vinNumber"],
+                        licenseplate.group(),
+                        dataJson["manufacturer"],
+                        dataJson["modelName"],
+                        dataJson["fuel"],
+                        dataJson["drive"],
+                        dataJson["registerDate"],
+                        dataJson["cylinders"],
+                        dataJson["cylinderVolumeLiters"],
+                        dataJson["powerHp"],
+                        dataJson["powerKW"],
+                    ),
+                )
+                db_new.commit()
+            else:
+                raise requests.exceptions.RequestException(f"HTTP: {request.status_code}\n{HTTPStatus(request.status_code).phrase}")
         except requests.exceptions.RequestException as e:
             print(f"Error fetching data for license plate {licenseplate.group()}: {e}")
-            return None
-        if request.status_code == 200:
-            dataJson = request.json()
-            if dataJson["powerHp"] < 1: dataJson["powerHp"] = 1
-            cur_new.execute("INSERT OR IGNORE INTO manufacturer (name) VALUES(?)", (dataJson["manufacturer"],))
-            cur_new.execute("INSERT OR IGNORE INTO model (modelName, description) VALUES(?, ?)", (dataJson["modelName"], dataJson["description"]))
-            cur_new.execute("INSERT OR IGNORE INTO drive_type (name) VALUES(?)", (dataJson["drive"],))
-            cur_new.execute("INSERT OR IGNORE INTO fuel_type (name) VALUES(?)", (dataJson["fuel"],))
-            cur_new.execute(
-                "INSERT INTO vehicle (vinNumber, licensePlate, manufacturer, modelName, fuel, drive, registerDate, cylinders, cylinderVolumeLiters, powerHp, powerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    dataJson["vinNumber"],
-                    licenseplate.group(),
-                    dataJson["manufacturer"],
-                    dataJson["modelName"],
-                    dataJson["fuel"],
-                    dataJson["drive"],
-                    dataJson["registerDate"],
-                    dataJson["cylinders"],
-                    dataJson["cylinderVolumeLiters"],
-                    dataJson["powerHp"],
-                    dataJson["powerKW"],
-                ),
-            )
-            db_new.commit()
-        else:
-            return request.status_code
+            return e
     return dataJson
 
 
@@ -150,11 +161,10 @@ def generate_message(licenseplate:str, discord_message: discord.Message, large:b
     """
     message = []
     full_message = discord_message.author.name + ": " + discord_message.content[:50]
-    dataJson = get_licenseplate(licenseplate)
-    if dataJson is None:
-        return "Rekkaria ei löydetty"
-    if type(dataJson) == int:
-        return f"HTTP: {dataJson}\n{HTTPStatus(dataJson).phrase}"
+    try:
+        dataJson = get_licenseplate(licenseplate)
+    except Exception as e:
+        return f"{e}"
     
     cur_new.execute("SELECT time, message, discord_message_id, discord_channel_id, discord_guild_id FROM message WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (dataJson["vinNumber"],))    
     messages = cur_new.fetchall()
@@ -173,8 +183,8 @@ def generate_message(licenseplate:str, discord_message: discord.Message, large:b
     else:
         message.append(dataJson["description"])
     
-    message.append(f"Teho : **{dataJson['powerHp']} hv**")
-    message.append(f"Sylinteritilavuus: **{dataJson['cylinderVolumeLiters']}**")
+    message.append(f"Teho : **{dataJson['powerHp']} hevosvoimaa**")
+    message.append(f"Sylinteritilavuus: **{dataJson['cylinderVolumeLiters']}** litraa")
     message.append(f"Sylinterimäärä: **{dataJson['cylinders']}**")
 
     if large == True:
@@ -399,6 +409,19 @@ async def r(ctx):
         licenseplate = pattern.search(normalize__licenseplate(licenseplate.group()))
         await ctx.send(generate_message(licenseplate, ctx.message, True))
 
+@bot.command()
+async def puhu(ctx):
+    licenseplate = pattern.search(ctx.message.content)
+    if licenseplate:
+        licenseplate = pattern.search(normalize__licenseplate(licenseplate.group()))
+        msg = generate_message(licenseplate, ctx.message, False)
+        try:
+            print(msg)
+            sound = get_sound(msg)
+        except Exception as e:
+            await ctx.send("Ismonator ei toiminut. \n" + str(e))
+            return
+        await ctx.send(file=discord.File(sound))
 @bot.event
 async def on_message(message:discord.Message):
     if message.author == bot.user:
