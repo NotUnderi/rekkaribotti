@@ -421,6 +421,7 @@ async def puhu(ctx):
         except Exception as e:
             await ctx.send("Ismonator ei toiminut. \n" + str(e))
             return
+        await ctx.send(msg)
         await ctx.send(file=discord.File(sound))
 @bot.event
 async def on_message(message:discord.Message):
