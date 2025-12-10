@@ -14,7 +14,6 @@ headers.update({
     "content-type": "application/json",
     "Origin": "https://ismonator.pikseli.org"
 })
-print(headers)
 def get_sound(msg : str):
     """
     Gets a link to FLAC file of Ismo saying the given message.
