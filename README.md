@@ -12,6 +12,7 @@
   </a>
   <img src="https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square" alt="Python 3.8+">
   <img src="https://img.shields.io/badge/Made%20with-%E2%9D%A4-red?style=flat-square" alt="Made with Love">
+  [![Python CI](https://github.com/NotUnderi/rekkaribotti/actions/workflows/python-app.yml/badge.svg)](https://github.com/NotUnderi/rekkaribotti/actions/workflows/python-app.yml)
 </p>
 
 **RekkariBotti** is a simple bot designed to fetch Finnish vehicle information by license plate using an Biltema's API. Useful for quick lookups, integrations, or just for fun.
