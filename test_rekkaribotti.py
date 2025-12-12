@@ -52,4 +52,4 @@ def test_exceptions():
     licenseplate = pattern.search(normalize__licenseplate(licenseplate.group()))
     with pytest.raises(RequestException) as excinfo:
         data = get_licenseplate(licenseplate)
-        assert "HTTP: 400" in str(excinfo.value)
+    assert "HTTP: 400" in str(excinfo.value)
