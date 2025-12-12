@@ -165,6 +165,8 @@ def generate_message(licenseplate:str, discord_message: discord.Message, large:b
         dataJson = get_licenseplate(licenseplate)
     except Exception as e:
         return f"{e}"
+    if isinstance(dataJson, Exception):
+        return f"Rekkarin haku epäonnistui :\n{dataJson}"
     
     cur_new.execute("SELECT time, message, discord_message_id, discord_channel_id, discord_guild_id FROM message WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (dataJson["vinNumber"],))    
     messages = cur_new.fetchall()
@@ -420,6 +422,9 @@ async def puhu(ctx):
             sound = get_sound(msg)
         except Exception as e:
             await ctx.send("Ismonator ei toiminut. \n" + str(e))
+            return
+        if isinstance(sound, Exception):
+            await ctx.send("Ismonator ei toiminut. \n" + str(sound))
             return
         await ctx.send(msg)
         await ctx.send(file=discord.File(sound))
