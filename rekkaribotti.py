@@ -158,7 +158,7 @@ def generate_message(licenseplate:str, discord_message: discord.Message, large:b
     try:
         dataJson = get_licenseplate(licenseplate)
     except Exception as e:
-        return f"Rekkarin haku epäonnistui :\n{dataJson}"
+        raise 
 
     
     cur_new.execute("SELECT time, message, discord_message_id, discord_channel_id, discord_guild_id FROM message WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (dataJson["vinNumber"],))    
@@ -402,7 +402,12 @@ async def r(ctx):
     licenseplate = pattern.search(ctx.message.content)
     if licenseplate:
         licenseplate = pattern.search(normalize__licenseplate(licenseplate.group()))
-        await ctx.send(generate_message(licenseplate, ctx.message, True))
+        try:
+            msg = generate_message(licenseplate, ctx.message, True)
+        except Exception as e:
+            await ctx.send("Rekkarin haku epäonnistui\n" + str(e))
+            return
+        await ctx.send(msg)
 
 @bot.command()
 async def puhu(ctx):
@@ -424,7 +429,12 @@ async def on_message(message:discord.Message):
     licenseplate = strictPattern.search(message.content)
     if licenseplate and not message.content.startswith('!'):
         licenseplate = strictPattern.search(normalize__licenseplate(licenseplate.group()))
-        await message.channel.send(generate_message(licenseplate, message, False))
+        try:
+            msg = generate_message(licenseplate, message, False)
+        except Exception as e:
+            await message.channel.send("Rekkarin haku epäonnistui\n" + str(e))
+            return
+        await message.channel.send(msg)
     await bot.process_commands(message)
 
 async def close():
