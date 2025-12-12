@@ -1,6 +1,7 @@
 from rekkaribotti import get_licenseplate, generate_message, normalize__licenseplate, init_db
 import re
-
+import pytest
+from requests.exceptions import RequestException
 
 pattern = re.compile(r'\b[a-zA-ZäöÄÖ]{1,3}-?\d{1,3}\b')
 
@@ -46,3 +47,9 @@ def test_get_licenseplate():
     assert data["registerDate"] == "1998-01-05"
     assert data["vinNumber"] == "JT153EEB100018333"
 
+def test_exceptions():
+    licenseplate = pattern.search("zgt801")
+    licenseplate = pattern.search(normalize__licenseplate(licenseplate.group()))
+    with pytest.raises(RequestException) as excinfo:
+        data = get_licenseplate(licenseplate)
+        assert "HTTP: 400" in str(excinfo.value)
