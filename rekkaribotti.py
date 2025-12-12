@@ -16,61 +16,58 @@ eest = pytz.timezone('Europe/Helsinki')
 DISCORD_MESSAGE_URL_PREFIX = "https://discord.com/channels/"
 biltema_db_change = datetime.datetime.fromisoformat("2025-09-08 09:00:00.000000+03:00")
 today = datetime.date.today()
+DB_NAME = "autot_new.db"
 
 
-headers = requests.utils.default_headers()
-headers.update({
-#    "Origin": "https://heiniset.fi",
-#    "Referer": "https://heiniset.fi/"
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:145.0) Gecko/20100101 Firefox/145.0",
-    "content-type": "application/json",
-    "Origin": "https://ismonator.pikseli.org"
-})
 with open("config.yaml", "r") as config_file:
     config = yaml.safe_load(config_file)
 
+def init_db(db_path: str) -> sqlite3.Connection:
+    db = sqlite3.connect(db_path)
+    db.row_factory = sqlite3.Row
+    cur_new = db.cursor()
+    cur_new.execute("CREATE TABLE IF NOT EXISTS manufacturer (name TEXT PRIMARY KEY)")
+    cur_new.execute("CREATE TABLE IF NOT EXISTS model (modelName TEXT PRIMARY KEY, description TEXT)")
+    cur_new.execute("""
+    CREATE TABLE IF NOT EXISTS vehicle (
+        vinNumber TEXT PRIMARY KEY,
+        licensePlate TEXT,
+        manufacturer TEXT,
+        modelName TEXT,
+        fuel TEXT,
+        drive TEXT,
+        registerDate TEXT,
+        cylinders INTEGER,
+        cylinderVolumeLiters INTEGER,
+        powerHp INTEGER,
+        powerKW INTEGER,
+        FOREIGN KEY(manufacturer) REFERENCES manufacturer(name),
+        FOREIGN KEY(modelName) REFERENCES model(modelName),
+        FOREIGN KEY(fuel) REFERENCES fuel_type(name),
+        FOREIGN KEY(drive) REFERENCES drive_type(name)
+    )
+    """)
+    cur_new.execute("CREATE TABLE IF NOT EXISTS drive_type (name TEXT PRIMARY KEY)")
+    cur_new.execute("CREATE TABLE IF NOT EXISTS fuel_type (name TEXT PRIMARY KEY)")
+    cur_new.execute("""
+    CREATE TABLE IF NOT EXISTS message (
+        id INTEGER PRIMARY KEY,
+        message TEXT,
+        vinNumber TEXT,
+        time TEXT,
+        discord_message_id TEXT,
+        discord_channel_id TEXT,
+        discord_guild_id TEXT,
+        FOREIGN KEY(vinNumber) REFERENCES vehicle(vinNumber)
+    )
+    """)
+    return db
 
-
-db_new = sqlite3.connect('autot_new.db')
-db_new.row_factory = sqlite3.Row
+db_new = init_db(DB_NAME)
 cur_new = db_new.cursor()
 
 #new normalized database
-cur_new.execute("CREATE TABLE IF NOT EXISTS manufacturer (name TEXT PRIMARY KEY)")
-cur_new.execute("CREATE TABLE IF NOT EXISTS model (modelName TEXT PRIMARY KEY, description TEXT)")
-cur_new.execute("""
-CREATE TABLE IF NOT EXISTS vehicle (
-    vinNumber TEXT PRIMARY KEY,
-    licensePlate TEXT,
-    manufacturer TEXT,
-    modelName TEXT,
-    fuel TEXT,
-    drive TEXT,
-    registerDate TEXT,
-    cylinders INTEGER,
-    cylinderVolumeLiters INTEGER,
-    powerHp INTEGER,
-    powerKW INTEGER,
-    FOREIGN KEY(manufacturer) REFERENCES manufacturer(name),
-    FOREIGN KEY(modelName) REFERENCES model(modelName),
-    FOREIGN KEY(fuel) REFERENCES fuel_type(name),
-    FOREIGN KEY(drive) REFERENCES drive_type(name)
-)
-""")
-cur_new.execute("CREATE TABLE IF NOT EXISTS drive_type (name TEXT PRIMARY KEY)")
-cur_new.execute("CREATE TABLE IF NOT EXISTS fuel_type (name TEXT PRIMARY KEY)")
-cur_new.execute("""
-CREATE TABLE IF NOT EXISTS message (
-    id INTEGER PRIMARY KEY,
-    message TEXT,
-    vinNumber TEXT,
-    time TEXT,
-    discord_message_id TEXT,
-    discord_channel_id TEXT,
-    discord_guild_id TEXT,
-    FOREIGN KEY(vinNumber) REFERENCES vehicle(vinNumber)
-)
-""")
+
 
 db_new.commit()
 
@@ -79,9 +76,6 @@ our_cars = config['cars']["ignored_cars"]
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
-
-if TOKEN is None:
-    raise ValueError("No DISCORD_TOKEN found in environment variables")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -438,7 +432,8 @@ async def on_message(message:discord.Message):
         await message.channel.send(generate_message(licenseplate, message, False))
     await bot.process_commands(message)
 
-
+async def close():
+    await bot.close()
 
 def normalize__licenseplate(licenseplate:str) -> str:
     licenseplate = licenseplate.upper()
@@ -470,4 +465,7 @@ def split_message_by_newlines(text, max_len=1900):
 
     return chunks
 
-bot.run(TOKEN)
+if __name__ == "__main__":
+    if TOKEN is None:
+        raise ValueError("No DISCORD_TOKEN found in environment variables")
+    bot.run(TOKEN)
