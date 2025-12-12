@@ -139,7 +139,7 @@ def get_licenseplate(licenseplate:str) -> str | dict:
                 raise requests.exceptions.RequestException(f"HTTP: {request.status_code}\n{HTTPStatus(request.status_code).phrase}")
         except requests.exceptions.RequestException as e:
             print(f"Error fetching data for license plate {licenseplate.group()}: {e}")
-            return e
+            raise
     return dataJson
 
 
@@ -158,9 +158,8 @@ def generate_message(licenseplate:str, discord_message: discord.Message, large:b
     try:
         dataJson = get_licenseplate(licenseplate)
     except Exception as e:
-        return f"{e}"
-    if isinstance(dataJson, Exception):
         return f"Rekkarin haku epäonnistui :\n{dataJson}"
+
     
     cur_new.execute("SELECT time, message, discord_message_id, discord_channel_id, discord_guild_id FROM message WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (dataJson["vinNumber"],))    
     messages = cur_new.fetchall()
@@ -410,15 +409,11 @@ async def puhu(ctx):
     licenseplate = pattern.search(ctx.message.content)
     if licenseplate:
         licenseplate = pattern.search(normalize__licenseplate(licenseplate.group()))
-        msg = generate_message(licenseplate, ctx.message, False)
         try:
-            print(msg)
+            msg = generate_message(licenseplate, ctx.message, False)
             sound = get_sound(msg)
         except Exception as e:
-            await ctx.send("Ismonator ei toiminut. \n" + str(e))
-            return
-        if isinstance(sound, Exception):
-            await ctx.send("Ismonator ei toiminut. \n" + str(sound))
+            await ctx.send("Rekkarin tai äänen haku epäonnistui\n" + str(e))
             return
         await ctx.send(msg)
         await ctx.send(file=discord.File(sound))

@@ -35,7 +35,7 @@ def get_sound(msg : str):
         else:
             raise requests.exceptions.RequestException(f"HTTP: {request.status_code}\n{request.reason}")
     except requests.exceptions.RequestException as e:
-        return f"Error fetching sound: {e}"
+        raise
 
 def parse_ismonator_response(raw, boundary=b"--boundary"):
     parts = raw.split(boundary)
