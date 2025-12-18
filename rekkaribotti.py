@@ -186,7 +186,7 @@ def generate_message(licenseplate:str, discord_message: discord.Message, large:b
         dataJson = get_licenseplate(licenseplate)
     except Exception as e:
         raise 
-
+    
     
     cur_new.execute("SELECT time, message, discord_message_id, discord_channel_id, discord_guild_id FROM message WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (dataJson["vinNumber"],))    
     messages = cur_new.fetchall()
@@ -199,7 +199,7 @@ def generate_message(licenseplate:str, discord_message: discord.Message, large:b
     if first_seen is not None:
         first_seen_time = datetime.datetime.fromisoformat(first_seen['time'])
         if (first_seen_time<biltema_db_change):
-            message.append(dataJson["manufacturer"] + " " + dataJson["modelName"] + " " + dataJson["description"])
+            message.append(dataJson["manufacturer"] + " " + dataJson["modelName"])
         else:
             message.append(dataJson["description"])
     else:
