@@ -11,6 +11,7 @@ import pytz
 import yaml
 from http import HTTPStatus
 from ismo_sound import get_sound
+import traceback
 
 eest = pytz.timezone('Europe/Helsinki')
 DISCORD_MESSAGE_URL_PREFIX = "https://discord.com/channels/"
@@ -41,6 +42,7 @@ def init_db(db_path: str) -> sqlite3.Connection:
         cylinderVolumeLiters INTEGER,
         powerHp INTEGER,
         powerKW INTEGER,
+        engine TEXT,
         FOREIGN KEY(manufacturer) REFERENCES manufacturer(name),
         FOREIGN KEY(modelName) REFERENCES model(modelName),
         FOREIGN KEY(fuel) REFERENCES fuel_type(name),
@@ -61,6 +63,12 @@ def init_db(db_path: str) -> sqlite3.Connection:
         FOREIGN KEY(vinNumber) REFERENCES vehicle(vinNumber)
     )
     """)
+    cur_new.execute("PRAGMA table_info(vehicle)")
+    columns = [column[1] for column in cur_new.fetchall()]
+    if "engine" not in columns:
+        cur_new.execute("ALTER TABLE vehicle ADD COLUMN engine TEXT")
+    if "description" not in columns:
+        cur_new.execute("ALTER TABLE vehicle ADD COLUMN description TEXT")
     return db
 
 db_new = init_db(DB_NAME)
@@ -113,32 +121,51 @@ def get_licenseplate(licenseplate:str) -> str | dict:
             request = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{licenseplate.group()}?market=3&language=FI")
             if request.status_code == 200:
                 dataJson = request.json()
-                if dataJson["powerHp"] < 1: dataJson["powerHp"] = 1
+                print(dataJson)
+                if dataJson["engineSection"]["engingeSpecification"]["powerHp"] < 1: dataJson["engineSection"]["engingeSpecification"]["powerHp"] = 1
                 cur_new.execute("INSERT OR IGNORE INTO manufacturer (name) VALUES(?)", (dataJson["manufacturer"],))
-                cur_new.execute("INSERT OR IGNORE INTO model (modelName, description) VALUES(?, ?)", (dataJson["modelName"], dataJson["description"]))
-                cur_new.execute("INSERT OR IGNORE INTO drive_type (name) VALUES(?)", (dataJson["drive"],))
-                cur_new.execute("INSERT OR IGNORE INTO fuel_type (name) VALUES(?)", (dataJson["fuel"],))
+                cur_new.execute("INSERT OR IGNORE INTO model (modelName,description) VALUES(?,?)", (dataJson["modelName"],""))
+                cur_new.execute("INSERT OR IGNORE INTO drive_type (name) VALUES(?)", (dataJson["gearBoxSection"]["drive"],))
+                cur_new.execute("INSERT OR IGNORE INTO fuel_type (name) VALUES(?)", (dataJson["fuelSection"]["fuel"],))
                 cur_new.execute(
-                    "INSERT INTO vehicle (vinNumber, licensePlate, manufacturer, modelName, fuel, drive, registerDate, cylinders, cylinderVolumeLiters, powerHp, powerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO vehicle (vinNumber, licensePlate, manufacturer, modelName, description, fuel, drive, registerDate, cylinders, cylinderVolumeLiters, powerHp, powerKW, engine) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?)",
                     (
-                        dataJson["vinNumber"],
+                        dataJson["vehicleInfo"]["vin"],
                         licenseplate.group(),
                         dataJson["manufacturer"],
                         dataJson["modelName"],
-                        dataJson["fuel"],
-                        dataJson["drive"],
-                        dataJson["registerDate"],
-                        dataJson["cylinders"],
-                        dataJson["cylinderVolumeLiters"],
-                        dataJson["powerHp"],
-                        dataJson["powerKW"],
+                        dataJson["description"],
+                        dataJson["fuelSection"]["fuel"],
+                        dataJson["gearBoxSection"]["drive"],
+                        dataJson["vehicleInfo"]["registrationDat"],
+                        dataJson["engineSection"]["engineConfiguration"]["cylinders"],
+                        dataJson["engineSection"]["engineConfiguration"]["cylinderVolumeLiters"],
+                        dataJson["engineSection"]["engingeSpecification"]["powerHp"],
+                        dataJson["engineSection"]["engingeSpecification"]["powerKW"],
+                        dataJson["engineSection"]["engineConfiguration"]["engine"],
                     ),
                 )
                 db_new.commit()
+                cur_new.execute(
+                    """
+                    SELECT vehicle.*, model.description
+                    FROM vehicle
+                    LEFT JOIN model ON model.modelName = vehicle.modelName
+                    WHERE vehicle.licensePlate = ?
+                    """,
+                    (licenseplate.group(),),
+                )
+                existing_vehicle = cur_new.fetchone()
+                if existing_vehicle is not None:
+                    dataJson = dict(existing_vehicle)
+                else:
+                    raise Exception("Failed to retrieve vehicle after insertion.")
             else:
                 raise requests.exceptions.RequestException(f"HTTP: {request.status_code}\n{HTTPStatus(request.status_code).phrase}")
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"Error fetching data for license plate {licenseplate.group()}: {e}")
+            tb = traceback.format_exc()
+            print(tb)
             raise
     return dataJson
 
@@ -179,10 +206,10 @@ def generate_message(licenseplate:str, discord_message: discord.Message, large:b
         message.append(dataJson["description"])
     
     message.append(f"Teho : **{dataJson['powerHp']} hevosvoimaa**")
-    message.append(f"Sylinteritilavuus: **{dataJson['cylinderVolumeLiters']}** litraa")
-    message.append(f"Sylinterimäärä: **{dataJson['cylinders']}**")
+    message.append(f"Moottori: **{dataJson['engine']}**")
 
     if large == True:
+        message.append(f"Sylinterimäärä: **{dataJson['cylinders']}**")
         message.append(f"Rekisteröintipäivä: **{dataJson['registerDate']}**")
         message.append(f"Vetotapa: **{dataJson['drive']}**")
         message.append(f"Polttoaine: **{dataJson['fuel']}**")
