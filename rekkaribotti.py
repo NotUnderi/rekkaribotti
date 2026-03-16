@@ -91,6 +91,21 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
+def _get_nested(d: dict, *keys, default=None):
+    for k in keys:
+        if not isinstance(d, dict):
+            return default
+        d = d.get(k)
+        if d is None:
+            return default
+    return d
+
+def _safe_int(v, default=0):
+    try:
+        return int(v)
+    except Exception:
+        return default
+
 def get_licenseplate(licenseplate:str) -> str | dict:
     """
     Fetches license plate information from the database or Biltema API.
@@ -114,12 +129,34 @@ def get_licenseplate(licenseplate:str) -> str | dict:
         try:
             request = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{licenseplate.group()}?market=3&language=FI")
             if request.status_code == 200:
-                dataJson = request.json()
-                if dataJson["powerHp"] < 1: dataJson["powerHp"] = 1
+                raw = request.json()
+
+                # Normalize into the schema keys used elsewhere
+                dataJson = {
+                    "manufacturer": raw.get("manufacturer", ""),
+                    "modelName": raw.get("modelName", ""),
+                    "description": raw.get("description", ""),
+                    "vinNumber": _get_nested(raw, "vehicleInfo", "vin") or "",
+                    "registerDate": _get_nested(raw, "vehicleInfo", "registerDate")
+                                    or _get_nested(raw, "vehicleInfo", "registrationDat")
+                                    or "",
+                    "drive": _get_nested(raw, "gearboxSection", "drive") or "",
+                    "fuel": _get_nested(raw, "fuelSection", "fuel") or "",
+                    "cylinders": _safe_int(_get_nested(raw, "engineSection", "engineConfiguration", "cylinders")),
+                    "cylinderVolumeLiters": _safe_int(_get_nested(raw, "engineSection", "engineConfiguration", "cylinderVolumeLiters")),
+                    "powerHp": _safe_int(_get_nested(raw, "engineSection", "engingeSpecification", "powerHp") or 1),
+                    "powerKW": _safe_int(_get_nested(raw, "engineSection", "engingeSpecification", "powerKW")),
+                }
+
+                if dataJson["powerHp"] < 1:
+                    dataJson["powerHp"] = 1
+
                 cur_new.execute("INSERT OR IGNORE INTO manufacturer (name) VALUES(?)", (dataJson["manufacturer"],))
                 cur_new.execute("INSERT OR IGNORE INTO model (modelName, description) VALUES(?, ?)", (dataJson["modelName"], dataJson["description"]))
-                cur_new.execute("INSERT OR IGNORE INTO drive_type (name) VALUES(?)", (dataJson["drive"],))
-                cur_new.execute("INSERT OR IGNORE INTO fuel_type (name) VALUES(?)", (dataJson["fuel"],))
+                if dataJson["drive"]:
+                    cur_new.execute("INSERT OR IGNORE INTO drive_type (name) VALUES(?)", (dataJson["drive"],))
+                if dataJson["fuel"]:
+                    cur_new.execute("INSERT OR IGNORE INTO fuel_type (name) VALUES(?)", (dataJson["fuel"],))
                 cur_new.execute(
                     "INSERT INTO vehicle (vinNumber, licensePlate, manufacturer, modelName, fuel, drive, registerDate, cylinders, cylinderVolumeLiters, powerHp, powerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
@@ -139,14 +176,10 @@ def get_licenseplate(licenseplate:str) -> str | dict:
                 db_new.commit()
             else:
                 raise requests.exceptions.RequestException(f"HTTP: {request.status_code}\n{HTTPStatus(request.status_code).phrase}")
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"Error fetching data for license plate {licenseplate.group()}: {e}")
             return e
     return dataJson
-
-
-
-
 
 def generate_message(licenseplate:str, new_message, large:bool) -> str | dict:
     """
@@ -179,15 +212,16 @@ def generate_message(licenseplate:str, new_message, large:bool) -> str | dict:
         message.append(dataJson["description"])
     
     h = html.escape
-    message.append(f"Teho : <b>{h(str(dataJson['powerHp']))} hevosvoimaa</b>")
-    message.append(f"Sylinteritilavuus: <b>{dataJson['cylinderVolumeLiters']}</b> litraa")
-    message.append(f"Sylinterimäärä: <b>{dataJson['cylinders']}</b>")
+    power_hp = _safe_int(dataJson.get("powerHp"), 1)
+    message.append(f"Teho : <b>{h(str(power_hp))} hevosvoimaa</b>")
+    message.append(f"Sylinteritilavuus: <b>{h(str(dataJson.get('cylinderVolumeLiters', '')))}</b> litraa")
+    message.append(f"Sylinterimäärä: <b>{h(str(dataJson.get('cylinders', '')))}</b>")
 
     if large:
-        message.append(f"Rekisteröintipäivä: <b>{dataJson['registerDate']}</b>")
-        message.append(f"Vetotapa: <b>{dataJson['drive']}</b>")
-        message.append(f"Polttoaine: <b>{dataJson['fuel']}</b>")
-        message.append(f"VIN: <b>{dataJson['vinNumber']}</b>")
+        message.append(f"Rekisteröintipäivä: <b>{h(str(dataJson.get('registerDate', '')))}</b>")
+        message.append(f"Vetotapa: <b>{h(str(dataJson.get('drive', '')))}</b>")
+        message.append(f"Polttoaine: <b>{h(str(dataJson.get('fuel', '')))}</b>")
+        message.append(f"VIN: <b>{h(str(dataJson.get('vinNumber', '')))}</b>")
         if messages:
             message.append(f"<b>Viimeiset haut:</b>")
             for msg in messages:
