@@ -2,8 +2,6 @@ import sys,os
 import re
 import requests
 from dotenv import load_dotenv
-import discord
-from discord.ext import commands
 import sqlite3
 import datetime
 from collections import defaultdict
@@ -11,6 +9,13 @@ import pytz
 import yaml
 from http import HTTPStatus
 from ismo_sound import get_sound
+from telegram import Update
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler,MessageHandler,   filters
+from telegram.constants import ParseMode
+from telegram.helpers import escape_markdown
+import asyncio
+import logging
+import html
 
 eest = pytz.timezone('Europe/Helsinki')
 DISCORD_MESSAGE_URL_PREFIX = "https://discord.com/channels/"
@@ -66,27 +71,24 @@ def init_db(db_path: str) -> sqlite3.Connection:
 db_new = init_db(DB_NAME)
 cur_new = db_new.cursor()
 
-#new normalized database
-
-
 db_new.commit()
 
 our_cars = config['cars']["ignored_cars"]
 
 
 load_dotenv()
-TOKEN = os.getenv('DISCORD_TOKEN')
-
-intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents)
-bot.remove_command('help')
+TOKEN = os.getenv('TELEGRAM_TOKEN')
 
 pattern = re.compile(r'\b[a-zA-ZäöÄÖ]{1,3}-?\d{1,3}\b')
 strictPattern = re.compile(r'\b[a-zA-ZäöÄÖ]{3}-?\d{3}\b')
 
 
 
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def get_licenseplate(licenseplate:str) -> str | dict:
@@ -146,15 +148,14 @@ def get_licenseplate(licenseplate:str) -> str | dict:
 
 
 
-def generate_message(licenseplate:str, discord_message: discord.Message, large:bool) -> str | dict:
+def generate_message(licenseplate:str, new_message, large:bool) -> str | dict:
     """
     Generates a message based on the license plate information.
     :param licenseplate: Licence plate number.
-    :param discord_message: Discord message object.
+    :param new_message: New message text.
     :param large: Should the response include extra data (search log etc.)
     """
     message = []
-    full_message = discord_message.author.name + ": " + discord_message.content[:50]
     try:
         dataJson = get_licenseplate(licenseplate)
     except Exception as e:
@@ -177,40 +178,41 @@ def generate_message(licenseplate:str, discord_message: discord.Message, large:b
     else:
         message.append(dataJson["description"])
     
-    message.append(f"Teho : **{dataJson['powerHp']} hevosvoimaa**")
-    message.append(f"Sylinteritilavuus: **{dataJson['cylinderVolumeLiters']}** litraa")
-    message.append(f"Sylinterimäärä: **{dataJson['cylinders']}**")
+    h = html.escape
+    message.append(f"Teho : <b>{h(str(dataJson['powerHp']))} hevosvoimaa</b>")
+    message.append(f"Sylinteritilavuus: <b>{dataJson['cylinderVolumeLiters']}</b> litraa")
+    message.append(f"Sylinterimäärä: <b>{dataJson['cylinders']}</b>")
 
-    if large == True:
-        message.append(f"Rekisteröintipäivä: **{dataJson['registerDate']}**")
-        message.append(f"Vetotapa: **{dataJson['drive']}**")
-        message.append(f"Polttoaine: **{dataJson['fuel']}**")
-        message.append(f"VIN: **{dataJson['vinNumber']}**")
+    if large:
+        message.append(f"Rekisteröintipäivä: <b>{dataJson['registerDate']}</b>")
+        message.append(f"Vetotapa: <b>{dataJson['drive']}</b>")
+        message.append(f"Polttoaine: <b>{dataJson['fuel']}</b>")
+        message.append(f"VIN: <b>{dataJson['vinNumber']}</b>")
         if messages:
-            message.append(f"**Viimeiset haut:**")
+            message.append(f"<b>Viimeiset haut:</b>")
             for msg in messages:
                 last_seen = datetime.datetime.fromisoformat(msg['time'])
                 human_readable_time = last_seen.strftime("%d.%m.%Y %H:%M:%S")
+                safe_msg = h(msg["message"])
                 if msg["discord_message_id"]:
-                    message.append(f"[**{human_readable_time}**: {msg['message']}]({DISCORD_MESSAGE_URL_PREFIX}{msg['discord_guild_id']}/{msg['discord_channel_id']}/{msg['discord_message_id']})")
+                    url = h(f"{DISCORD_MESSAGE_URL_PREFIX}{msg['discord_guild_id']}/{msg['discord_channel_id']}/{msg['discord_message_id']}")
+                    message.append(f"<a href=\"{url}\"><b>{human_readable_time}</b>: {safe_msg}</a>")
                 else:
-                    message.append(f"**{human_readable_time}**: {msg['message']}")
-    message.append(f"Hakukertoja yhteensä:**{str(total_mentions)}**")
+                    message.append(f"<b>{human_readable_time}</b>: {safe_msg}")
+    message.append(f"Hakukertoja yhteensä:<b>{str(total_mentions)}</b>")
 
-    if full_message is not None:
+    if new_message is not None:
         cur_new.execute("INSERT INTO message (message, vinNumber, time, discord_message_id, discord_channel_id, discord_guild_id) VALUES (?, ?, ?, ?, ?, ?)",
-                    (full_message, dataJson["vinNumber"], datetime.datetime.now(eest), str(discord_message.id), str(discord_message.channel.id), str(discord_message.guild.id)))
+                    (new_message, dataJson["vinNumber"], datetime.datetime.now(eest), None, None, None))
         db_new.commit()
     return('\n'.join(message))
     
 
-
-@bot.event
+'''
 async def on_ready():
     print(f'Logged in as {bot.user}')
 
 
-@bot.command()
 async def help(ctx):
     message = []
     message.append("**Komennot:**")
@@ -220,7 +222,6 @@ async def help(ctx):
     await ctx.send('\n'.join(message))
 
 
-@bot.command()
 async def hae(ctx):
     message = []
 
@@ -249,7 +250,6 @@ async def hae(ctx):
     for chunk in message_chunks:
         await ctx.send(chunk)
         
-@bot.command()
 async def stats(ctx):
     message = []
     count=0
@@ -417,18 +417,27 @@ async def puhu(ctx):
             return
         await ctx.send(msg)
         await ctx.send(file=discord.File(sound))
-@bot.event
-async def on_message(message:discord.Message):
-    if message.author == bot.user:
-        return
-    licenseplate = strictPattern.search(message.content)
-    if licenseplate and not message.content.startswith('!'):
-        licenseplate = strictPattern.search(normalize__licenseplate(licenseplate.group()))
-        await message.channel.send(generate_message(licenseplate, message, False))
-    await bot.process_commands(message)
+        '''
 
-async def close():
-    await bot.close()
+async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    licenseplate = pattern.search(text)
+    if licenseplate and text.startswith('!r'):
+        licenseplate = pattern.search(normalize__licenseplate(licenseplate.group()))
+        msg = generate_message(licenseplate, update.message.from_user.first_name + ": " + text, True)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            parse_mode=ParseMode.HTML,
+            text=msg
+        )
+    elif licenseplate and not text.startswith('!'):
+        licenseplate = strictPattern.search(normalize__licenseplate(licenseplate.group()))
+        msg = generate_message(licenseplate, update.message.from_user.first_name + ": " + text, False)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            parse_mode=ParseMode.HTML,
+            text=msg
+        )
 
 def normalize__licenseplate(licenseplate:str) -> str:
     licenseplate = licenseplate.upper()
@@ -459,8 +468,9 @@ def split_message_by_newlines(text, max_len=1900):
         chunks.append("\n".join(current))
 
     return chunks
-
-if __name__ == "__main__":
-    if TOKEN is None:
-        raise ValueError("No DISCORD_TOKEN found in environment variables")
-    bot.run(TOKEN)
+if __name__ == '__main__':
+    application = ApplicationBuilder().token(TOKEN).build()
+    
+    on_message_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), on_message)
+    application.add_handler(on_message_handler)
+    application.run_polling()
