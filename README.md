@@ -16,6 +16,8 @@
 
 **RekkariBotti** is a simple bot designed to fetch Finnish vehicle information by license plate using an Biltema's API. Useful for quick lookups, integrations, or just for fun.
 
+As of 16.3.2026 due to unfortunate events I will be migrating from Discord to Telegram.
+
 ## Features
 
 - 🔍 Lookup vehicle data by Finnish license plate  
@@ -54,7 +56,6 @@ The bot should now be running on your server ready to read license plates!
 
 - [ ] Docker container for easy deployment  
 - [ ] Integrate Traficom Open Data to find/predict car location, weight etc. and get power/weight for comparing cars
-- [ ] Full rewrite to standardize variable and other names from Finnish to English and make the bot and fetching/caching script seperate
 
 ## License
 
