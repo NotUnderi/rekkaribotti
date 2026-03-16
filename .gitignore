@@ -4,3 +4,7 @@ __pycache__
 *.pyc
 *.flac
 .vscode
+bin/
+lib/
+lib64
+pyvenv.cfg
