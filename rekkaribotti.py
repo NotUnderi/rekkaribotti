@@ -18,7 +18,6 @@ import logging
 import html
 
 eest = pytz.timezone('Europe/Helsinki')
-DISCORD_MESSAGE_URL_PREFIX = "https://discord.com/channels/"
 biltema_db_change = datetime.datetime.fromisoformat("2025-09-08 09:00:00.000000+03:00")
 today = datetime.date.today()
 DB_NAME = "autot_new.db"
@@ -43,7 +42,7 @@ def init_db(db_path: str) -> sqlite3.Connection:
         drive TEXT,
         registerDate TEXT,
         cylinders INTEGER,
-        cylinderVolumeLiters INTEGER,
+        cylinderVolumeLiters REAL,
         powerHp INTEGER,
         powerKW INTEGER,
         FOREIGN KEY(manufacturer) REFERENCES manufacturer(name),
@@ -60,9 +59,6 @@ def init_db(db_path: str) -> sqlite3.Connection:
         message TEXT,
         vinNumber TEXT,
         time TEXT,
-        discord_message_id TEXT,
-        discord_channel_id TEXT,
-        discord_guild_id TEXT,
         FOREIGN KEY(vinNumber) REFERENCES vehicle(vinNumber)
     )
     """)
@@ -88,7 +84,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
-logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.INFO)
 
 
 def _get_nested(d: dict, *keys, default=None):
@@ -228,11 +224,7 @@ def generate_message(licenseplate:str, new_message, large:bool) -> str | dict:
                 last_seen = datetime.datetime.fromisoformat(msg['time'])
                 human_readable_time = last_seen.strftime("%d.%m.%Y %H:%M:%S")
                 safe_msg = h(msg["message"])
-                if msg["discord_message_id"]:
-                    url = h(f"{DISCORD_MESSAGE_URL_PREFIX}{msg['discord_guild_id']}/{msg['discord_channel_id']}/{msg['discord_message_id']}")
-                    message.append(f"<a href=\"{url}\"><b>{human_readable_time}</b>: {safe_msg}</a>")
-                else:
-                    message.append(f"<b>{human_readable_time}</b>: {safe_msg}")
+                message.append(f"<b>{human_readable_time}</b>: {safe_msg}")
     message.append(f"Hakukertoja yhteensä:<b>{str(total_mentions)}</b>")
 
     if new_message is not None:
