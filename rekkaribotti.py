@@ -101,6 +101,11 @@ def _safe_int(v, default=0):
         return int(v)
     except Exception:
         return default
+def _safe_float(v, default=0.0):
+    try:
+        return float(v)
+    except Exception:
+        return default  
 
 def get_licenseplate(licenseplate:str) -> str | dict:
     """
@@ -138,7 +143,7 @@ def get_licenseplate(licenseplate:str) -> str | dict:
                 "drive": _get_nested(raw, "gearboxSection", "drive") or "",
                 "fuel": _get_nested(raw, "fuelSection", "fuel") or "",
                 "cylinders": _safe_int(_get_nested(raw, "engineSection", "engineConfiguration", "cylinders")),
-                "cylinderVolumeLiters": _safe_int(_get_nested(raw, "engineSection", "engineConfiguration", "cylinderVolumeLiters")),
+                "cylinderVolumeLiters": _safe_float(_get_nested(raw, "engineSection", "engineConfiguration", "cylinderVolumeLiters")),
                 "powerHp": _safe_int(_get_nested(raw, "engineSection", "engingeSpecification", "powerHp") or 1),
                 "powerKW": _safe_int(_get_nested(raw, "engineSection", "engingeSpecification", "powerKW")),
             }
