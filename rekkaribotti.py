@@ -191,7 +191,7 @@ def generate_message(licenseplate:str, new_message, large:bool) -> str | dict:
     except Exception as e:
         return f"Error fetching data for license plate {licenseplate.group()}: {e}"
     
-    cur_new.execute("SELECT time, message, discord_message_id, discord_channel_id, discord_guild_id FROM message WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (dataJson["vinNumber"],))    
+    cur_new.execute("SELECT time, message FROM message WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (dataJson["vinNumber"],))    
     messages = cur_new.fetchall()
 
     cur_new.execute("SELECT COUNT(*) FROM message WHERE vinNumber = ?", (dataJson["vinNumber"],)) # We fetch total mention count separately since cannot do len() on above query due to "LIMIT 5"    
@@ -229,8 +229,8 @@ def generate_message(licenseplate:str, new_message, large:bool) -> str | dict:
     message.append(f"Hakukertoja yhteensä:<b>{str(total_mentions)}</b>")
 
     if new_message is not None:
-        cur_new.execute("INSERT INTO message (message, vinNumber, time, discord_message_id, discord_channel_id, discord_guild_id) VALUES (?, ?, ?, ?, ?, ?)",
-                    (new_message, dataJson["vinNumber"], datetime.datetime.now(eest), None, None, None))
+        cur_new.execute("INSERT INTO message (message, vinNumber, time) VALUES (?, ?, ?)",
+                    (new_message, dataJson["vinNumber"], datetime.datetime.now(eest)))
         db_new.commit()
     return('\n'.join(message))
     
