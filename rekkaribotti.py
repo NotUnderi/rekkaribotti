@@ -122,59 +122,55 @@ def get_licenseplate(licenseplate:str) -> str | dict:
     if existing_vehicle is not None:
         dataJson = dict(existing_vehicle)
     else:
-        try:
-            request = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{licenseplate.group()}?market=3&language=FI")
-            if request.status_code == 200:
-                raw = request.json()
+        request = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{licenseplate.group()}?market=3&language=FI")
+        if request.status_code == 200:
+            raw = request.json()
 
-                # Normalize into the schema keys used elsewhere
-                dataJson = {
-                    "manufacturer": raw.get("manufacturer", ""),
-                    "modelName": raw.get("modelName", ""),
-                    "description": raw.get("description", ""),
-                    "vinNumber": _get_nested(raw, "vehicleInfo", "vin") or "",
-                    "registerDate": _get_nested(raw, "vehicleInfo", "registerDate")
-                                    or _get_nested(raw, "vehicleInfo", "registrationDat")
-                                    or "",
-                    "drive": _get_nested(raw, "gearboxSection", "drive") or "",
-                    "fuel": _get_nested(raw, "fuelSection", "fuel") or "",
-                    "cylinders": _safe_int(_get_nested(raw, "engineSection", "engineConfiguration", "cylinders")),
-                    "cylinderVolumeLiters": _safe_int(_get_nested(raw, "engineSection", "engineConfiguration", "cylinderVolumeLiters")),
-                    "powerHp": _safe_int(_get_nested(raw, "engineSection", "engingeSpecification", "powerHp") or 1),
-                    "powerKW": _safe_int(_get_nested(raw, "engineSection", "engingeSpecification", "powerKW")),
-                }
+            # Normalize into the schema keys used elsewhere
+            dataJson = {
+                "manufacturer": raw.get("manufacturer", ""),
+                "modelName": raw.get("modelName", ""),
+                "description": raw.get("description", ""),
+                "vinNumber": _get_nested(raw, "vehicleInfo", "vin") or "",
+                "registerDate": _get_nested(raw, "vehicleInfo", "registerDate")
+                                or _get_nested(raw, "vehicleInfo", "registrationDat")
+                                or "",
+                "drive": _get_nested(raw, "gearboxSection", "drive") or "",
+                "fuel": _get_nested(raw, "fuelSection", "fuel") or "",
+                "cylinders": _safe_int(_get_nested(raw, "engineSection", "engineConfiguration", "cylinders")),
+                "cylinderVolumeLiters": _safe_int(_get_nested(raw, "engineSection", "engineConfiguration", "cylinderVolumeLiters")),
+                "powerHp": _safe_int(_get_nested(raw, "engineSection", "engingeSpecification", "powerHp") or 1),
+                "powerKW": _safe_int(_get_nested(raw, "engineSection", "engingeSpecification", "powerKW")),
+            }
 
-                if dataJson["powerHp"] < 1:
-                    dataJson["powerHp"] = 1
+            if dataJson["powerHp"] < 1:
+                dataJson["powerHp"] = 1
 
-                cur_new.execute("INSERT OR IGNORE INTO manufacturer (name) VALUES(?)", (dataJson["manufacturer"],))
-                cur_new.execute("INSERT OR IGNORE INTO model (modelName, description) VALUES(?, ?)", (dataJson["modelName"], dataJson["description"]))
-                if dataJson["drive"]:
-                    cur_new.execute("INSERT OR IGNORE INTO drive_type (name) VALUES(?)", (dataJson["drive"],))
-                if dataJson["fuel"]:
-                    cur_new.execute("INSERT OR IGNORE INTO fuel_type (name) VALUES(?)", (dataJson["fuel"],))
-                cur_new.execute(
-                    "INSERT INTO vehicle (vinNumber, licensePlate, manufacturer, modelName, fuel, drive, registerDate, cylinders, cylinderVolumeLiters, powerHp, powerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        dataJson["vinNumber"],
-                        licenseplate.group(),
-                        dataJson["manufacturer"],
-                        dataJson["modelName"],
-                        dataJson["fuel"],
-                        dataJson["drive"],
-                        dataJson["registerDate"],
-                        dataJson["cylinders"],
-                        dataJson["cylinderVolumeLiters"],
-                        dataJson["powerHp"],
-                        dataJson["powerKW"],
-                    ),
-                )
-                db_new.commit()
-            else:
-                raise requests.exceptions.RequestException(f"HTTP: {request.status_code}\n{HTTPStatus(request.status_code).phrase}")
-        except Exception as e:
-            print(f"Error fetching data for license plate {licenseplate.group()}: {e}")
-            return e
+            cur_new.execute("INSERT OR IGNORE INTO manufacturer (name) VALUES(?)", (dataJson["manufacturer"],))
+            cur_new.execute("INSERT OR IGNORE INTO model (modelName, description) VALUES(?, ?)", (dataJson["modelName"], dataJson["description"]))
+            if dataJson["drive"]:
+                cur_new.execute("INSERT OR IGNORE INTO drive_type (name) VALUES(?)", (dataJson["drive"],))
+            if dataJson["fuel"]:
+                cur_new.execute("INSERT OR IGNORE INTO fuel_type (name) VALUES(?)", (dataJson["fuel"],))
+            cur_new.execute(
+                "INSERT INTO vehicle (vinNumber, licensePlate, manufacturer, modelName, fuel, drive, registerDate, cylinders, cylinderVolumeLiters, powerHp, powerKW) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    dataJson["vinNumber"],
+                    licenseplate.group(),
+                    dataJson["manufacturer"],
+                    dataJson["modelName"],
+                    dataJson["fuel"],
+                    dataJson["drive"],
+                    dataJson["registerDate"],
+                    dataJson["cylinders"],
+                    dataJson["cylinderVolumeLiters"],
+                    dataJson["powerHp"],
+                    dataJson["powerKW"],
+                ),
+            )
+            db_new.commit()
+        else:
+            raise requests.exceptions.RequestException(f"HTTP: {request.status_code}\n{HTTPStatus(request.status_code).phrase}")
     return dataJson
 
 def generate_message(licenseplate:str, new_message, large:bool) -> str | dict:
@@ -188,7 +184,7 @@ def generate_message(licenseplate:str, new_message, large:bool) -> str | dict:
     try:
         dataJson = get_licenseplate(licenseplate)
     except Exception as e:
-        return f"{e}"
+        return f"Error fetching data for license plate {licenseplate.group()}: {e}"
     
     cur_new.execute("SELECT time, message, discord_message_id, discord_channel_id, discord_guild_id FROM message WHERE vinNumber = ? ORDER BY time DESC LIMIT 5", (dataJson["vinNumber"],))    
     messages = cur_new.fetchall()
