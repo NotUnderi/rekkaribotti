@@ -140,7 +140,7 @@ def get_licenseplate(licenseplate:str) -> str | dict:
     if existing_vehicle is not None:
         dataJson = dict(existing_vehicle)
     else:
-        request = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{licenseplate.group()}?market=3&language=FI")
+        request = requests.get(f"https://reko2.biltema.com/VehicleInformation/licensePlate/{licenseplate.group()}?market=3&language=FI",headers=headers)
         if request.status_code == 200:
             raw = request.json()
 
